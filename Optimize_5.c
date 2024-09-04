@@ -7,6 +7,12 @@
 #define SHOULD_PRINT_DEBUG 0
 #define DEBUG(command) if(SHOULD_PRINT_DEBUG) command
 
+#define SHOULD_PRINT_DEBUG2 1
+#define DEBUG2(command) if(SHOULD_PRINT_DEBUG2) command
+
+#define SHOULD_PRINT_DEBUG3 0
+#define DEBUG3(command) if(SHOULD_PRINT_DEBUG3) command
+
 int time = 0;
 
 char **str_split(char *a_str, const char a_delim, int *count){
@@ -32,12 +38,12 @@ char **str_split(char *a_str, const char a_delim, int *count){
     /* Add space for terminating null string so caller
        knows where the list of returned strings ends. */
     (*count)++;
-    DEBUG(printf("[debug] A.5 %d\n", *count);)
+    DEBUG(printf("[debug] S.1 %d\n", *count);)
     result = malloc(sizeof(char *) * (*count));
-    DEBUG(printf("[debug] A.6\n"));
+    DEBUG(printf("[debug] S.2\n"));
     if (result)
     {
-        DEBUG(printf("[debug] A.7\n"));
+        DEBUG(printf("[debug] S.3\n"));
         size_t idx = 0;
         char *token = strtok(a_str, delim);
         while (token)
@@ -49,7 +55,7 @@ char **str_split(char *a_str, const char a_delim, int *count){
         assert(idx == (*count) - 1);
         *(result + idx) = 0;
     }
-    DEBUG(printf("[debug] A.8\n"));
+    DEBUG(printf("[debug] S.4\n"));
     // printf("[debug] count %d\n", (*count));
     return result;
 }
@@ -112,13 +118,12 @@ typedef struct coda_ordini{
     puntatore_ordine head;
     puntatore_ordine tail;
 } coda_ordini;
-typedef coda_ordini * puntatore_coda_ordini;
+typedef coda_ordini* puntatore_coda_ordini;
 
 puntatore_coda_ordini ordini_in_sospeso;
 puntatore_coda_ordini ordini_completati;
 
 void add_ordine_in_coda(puntatore_coda_ordini ordini ,puntatore_ordine new_ord ){
-    
     if(!ordini->tail){
         ordini->head = new_ord;
         ordini->tail = ordini->head;
@@ -127,7 +132,6 @@ void add_ordine_in_coda(puntatore_coda_ordini ordini ,puntatore_ordine new_ord )
     ordini->tail->next = new_ord;
     ordini->tail = ordini->tail->next;
 }
-
 hashtable_ricette crea_hashtable_ricette(){
     hashtable_ricette ht = (hashtable_ricette)calloc(DIM_HASH_TABLE, sizeof(puntatore_ricetta));
     return ht;
@@ -140,7 +144,7 @@ puntatore_ingrediente crea_ingr(char *ing, int qnt)
     new_ing->next = NULL;
     return new_ing;
 }
-puntatore_ingrediente  aggiungi_ingrediente_in_lista(puntatore_ingrediente head, char *ing, int qnt){
+puntatore_ingrediente aggiungi_ingrediente_in_lista(puntatore_ingrediente head, char *ing, int qnt){
     puntatore_ingrediente new_head = head;
     if (head == NULL)
     {
@@ -180,21 +184,19 @@ puntatore_ricetta seek_lista_ricette(puntatore_ricetta head, const char *name){
     }
     return NULL;
 }
-puntatore_ricetta seek_ricetta_hashtable(hashtable_ricette ht, const char *nome_ric){
+puntatore_ricetta seek_ricetta_hashtable(hashtable_ricette ht, const char* nome_ric){
     size_t hash_indice = hash_string(nome_ric);
-    DEBUG(printf("[debug] A.10 %ld %s\n", hash_indice, nome_ric);)
+    DEBUG(printf("[debug] SRH.10 %ld %s\n", hash_indice, nome_ric);)
     puntatore_ricetta pointer_ric = seek_lista_ricette(ht[hash_indice], nome_ric);
     return pointer_ric;
 }
 puntatore_ricetta aggiungi_ricetta(puntatore_ricetta curr, puntatore_ricetta new_ric){
     puntatore_ricetta new_head = curr;
-    if (curr == NULL)
-    {
+    if (curr == NULL){
         curr = new_ric;
         new_head = new_ric;
     }
-    else
-    {
+    else{
         while (curr->next != NULL)
         {
             curr = curr->next;
@@ -231,24 +233,22 @@ puntatore_magazzino crea_magazzino(char *ing, puntatore_lotto new_lotto){
     new_magazzino->next = NULL;
     return new_magazzino;
 }
-void aggiungi_magazzino(puntatore_magazzino curr, puntatore_magazzino new_mgz){
-    if (curr == NULL)
-    {
+puntatore_magazzino aggiungi_magazzino(puntatore_magazzino curr, puntatore_magazzino new_mgz){
+    if (curr == NULL){
         curr = new_mgz;
     }
-    else
-    {
-        while (curr->next != NULL)
-        {
+    else{
+        while (curr->next != NULL){
             curr = curr->next;
         }
         curr->next = new_mgz;
     }
+    return new_mgz;
 }
 void add_magazzino_hashtable(hashtable_magazzino ht, puntatore_magazzino new_mgz){
     size_t hash_indice = hash_string(new_mgz->ingrediente) ;
     puntatore_magazzino curr_mgz = ht[hash_indice];
-    aggiungi_magazzino(curr_mgz, new_mgz);
+    ht[hash_indice] = aggiungi_magazzino(curr_mgz, new_mgz);
 }
 puntatore_lotto crea_lotto(int qnt, int scd){
     puntatore_lotto new_lotto = (puntatore_lotto)malloc(sizeof(lotto));
@@ -268,32 +268,43 @@ puntatore_magazzino seek_magazzino(hashtable_magazzino ht_mgz, char *ing){
 void aggiungi_lotto_a_mgz(hashtable_magazzino ht_mgz, char *ing, puntatore_lotto new_lotto){
     size_t hash_indice = hash_string(ing) ;
     puntatore_magazzino curr_mgz = ht_mgz[hash_indice];
-    while (curr_mgz->next != NULL && strcmp(curr_mgz->ingrediente, ing) != 0)
-    {
-        curr_mgz = curr_mgz->next;
-    }
-    if (strcmp(curr_mgz->ingrediente, ing) == 0)
-    {
-        puntatore_lotto curr_lotto = curr_mgz->lotti;
-        while (curr_lotto->next->scadenza < new_lotto->scadenza || curr_lotto->next != NULL)
-        {
-            curr_lotto = curr_lotto->next;
-        }
-        new_lotto->next = curr_lotto->next;
-        curr_lotto->next = new_lotto;
-        curr_mgz->quantita_tot = curr_mgz->quantita_tot + new_lotto->quantita;
-    }
-    if (curr_mgz->next == NULL)
-    {
+    if(curr_mgz == NULL){
         puntatore_magazzino new_mgz = crea_magazzino(ing, new_lotto);
-        aggiungi_magazzino(ht_mgz[hash_indice], new_mgz);
+        add_magazzino_hashtable(ht_mgz, new_mgz);
+    }
+    else{
+        while (curr_mgz->next != NULL && strcmp(curr_mgz->ingrediente, ing) != 0){
+            curr_mgz = curr_mgz->next;
+        }
+        if (strcmp(curr_mgz->ingrediente, ing) == 0){
+            puntatore_lotto curr_lotto = curr_mgz->lotti;
+            if(curr_lotto->scadenza > new_lotto->scadenza){
+                curr_mgz->lotti = new_lotto;
+                curr_mgz->lotti->next = curr_lotto;
+            }
+            while (curr_lotto->next != NULL && curr_lotto->next->scadenza < new_lotto->scadenza){
+                curr_lotto = curr_lotto->next;
+            }
+            if(curr_lotto->next == NULL){
+                curr_lotto->next = new_lotto;
+            }
+            else{
+                new_lotto->next = curr_lotto->next;
+                curr_lotto->next = new_lotto;
+                curr_mgz->quantita_tot = curr_mgz->quantita_tot + new_lotto->quantita;
+            }
+        }
+        else{
+            puntatore_magazzino new_mgz = crea_magazzino(ing, new_lotto);
+            add_magazzino_hashtable(ht_mgz, new_mgz);
+        }
     }
 }
 int is_ordine_fattibile(puntatore_ordine ord, hashtable_ricette ht_ricette, hashtable_magazzino ht_mgz){
     DEBUG(printf("[debug] is_ordine_fattibile %s\n", ord->ricetta));
     puntatore_ricetta ric_ord = seek_ricetta_hashtable(ht_ricette, ord->ricetta);
     puntatore_ingrediente curr_ing = ric_ord->ingredienti;
-        
+
     while (curr_ing != NULL){
         DEBUG(printf("[debug] [is_ordine_fattibile] check-ingrediente %s\n", curr_ing->name));
         puntatore_magazzino curr_mgz = seek_magazzino(ht_mgz, curr_ing->name);
@@ -357,23 +368,36 @@ void cancella_ricetta_hashtable(hashtable_ricette ht, puntatore_ricetta ricetta_
     free(ricetta_da_eliminare);
 }
 puntatore_ordine add_ordine_peso(puntatore_ordine carico, puntatore_ordine ord){
+    DEBUG2(printf("[debug] AOP.1\n");)
     if(carico == NULL){
+        DEBUG2(printf("[debug] AOP.2\n");)
         carico = ord;
         return carico;
     }
     puntatore_ordine curr_ord = carico;
+    DEBUG2(printf("[debug] AOP.3\n");)
     while(curr_ord->next != NULL && curr_ord->weight <= ord->weight){
         curr_ord = curr_ord->next;
     }
-    ord->next = curr_ord->next;
-    curr_ord->next = ord;
+    if(curr_ord->next == NULL){
+        DEBUG2(printf("[debug] AOP.4.1\n");)
+        curr_ord->next = ord;
+        ord->next = NULL;
+    }
+    else{
+        DEBUG2(printf("[debug] AOP.4.2\n");)
+        ord->next = curr_ord->next;
+        curr_ord->next = ord;
+    }
     return carico;
 }
-puntatore_ordine seleziona_ordini_camioncino(int capienza){
+puntatore_ordine seleziona_ordini_camioncino(int capienza, hashtable_ricette ht_ricette){
     puntatore_ordine carico = NULL;
     puntatore_ordine head_ordini_pronti = ordini_completati->head;
     while(head_ordini_pronti && capienza >= head_ordini_pronti->weight){
+        DEBUG2(printf("[debug] [seleziona_ordini_camioncino] ordine: %d %s %d\n", head_ordini_pronti->time, head_ordini_pronti->ricetta, head_ordini_pronti->quantita);)
         carico = add_ordine_peso(carico, head_ordini_pronti);
+        set_new_ordine_per_ricetta(head_ordini_pronti, '-', ht_ricette);
         head_ordini_pronti = head_ordini_pronti->next;
         ordini_completati->head->next = NULL;
         free(ordini_completati->head);
@@ -385,6 +409,7 @@ void put_ordine (puntatore_ordine ord){
     puntatore_ordine curr = ord;
     while(curr != NULL){
         fprintf(stdout, "%d %s %d\n", curr->time, curr->ricetta, curr->quantita);
+        curr = curr->next;
     }
 }
 puntatore_lotto remove_lotto (puntatore_lotto head_lotto, puntatore_lotto to_remove){
@@ -462,6 +487,24 @@ puntatore_ordine check_ordiniSospesi(puntatore_ordine head_ord, hashtable_ricett
     }
     return head_ord;
 }
+puntatore_magazzino remove_magazzino(puntatore_magazzino head_mgz, puntatore_magazzino to_remove){
+    puntatore_lotto curr = head_mgz;
+    if(head_mgz == to_remove){
+        curr = head_mgz->next;
+        head_mgz->next = NULL;
+        //free(head_mgz);
+        return curr;
+    }
+    puntatore_magazzino prec = NULL;
+    while(curr != to_remove){
+        prec = curr;
+        curr = curr->next;
+    }
+    prec->next = curr->next;
+    curr->next = NULL;
+    free(curr);
+    return head_mgz;
+}
 void remove_lotti_scd(hashtable_magazzino ht_mgz){
     for(int i=0; i<DIM_HASH_TABLE; i++){
         puntatore_magazzino curr_mgz = ht_mgz[i];
@@ -478,8 +521,24 @@ void remove_lotti_scd(hashtable_magazzino ht_mgz){
                     curr_lotto = curr_lotto->next;
                 }
             }
-            curr_mgz = curr_mgz->next;
+            if(curr_mgz->lotti == NULL){
+                puntatore_magazzino temp = curr_mgz;
+                curr_mgz = curr_mgz->next;
+                remove_magazzino(ht_mgz[i], temp);
+            }
+            else{
+                curr_mgz = curr_mgz->next;
+            }
         }
+    }
+}
+void set_new_ordine_per_ricetta(puntatore_ordine ord, char sign, hashtable_ricette ht_ricette){
+    puntatore_ricetta ric = seek_ricetta_hashtable(ht_ricette, ord->ricetta);
+    if(sign == '+'){
+        ric->num_ordini_sospeso++;
+    }
+    if(sign == '-' && ric->num_ordini_sospeso > 0){
+        ric->num_ordini_sospeso--;
     }
 }
 
@@ -487,11 +546,11 @@ int main()
 {
     ordini_in_sospeso = (puntatore_coda_ordini) calloc(1, sizeof(coda_ordini));
     ordini_completati = (puntatore_coda_ordini) calloc(1, sizeof(coda_ordini));
-    
+
     // DA DOVE PRENDERE L'INPUT
-    FILE *in1 = stdin;
+    //FILE *in1 = stdin;
     //FILE* in1 = fopen("C:\\Users\\Giacomo\\Desktop\\Prog_API\\Open_rand.txt", "r");
-    //FILE* in1 = fopen("C:\\Users\\Giacomo\\Desktop\\Prog_API\\comandi.txt", "r");
+    FILE* in1 = fopen("C:\\Users\\Giacomo\\Desktop\\Prog_API\\comandi.txt", "r");
 
     // GESTIONE DEL COMANDO
     char r2;
@@ -499,7 +558,7 @@ int main()
     int time_corriere, capienza;
     char comando[1000];
     char *ric;
-    
+
     int qnt;
     int scd;
     char *sub;
@@ -508,20 +567,17 @@ int main()
     hashtable_ricette ht_ricette = crea_hashtable_ricette();
     hashtable_magazzino ht_magazzino = crea_hashtable_magazzino();
 
-    // GESTIONE SINGOLE PARTI DI CODICE
-    puntatore_ricetta ptr_ric;
-
     // EXEC
     DEBUG(printf("[debug] start\n"));
     fscanf(in1, "%d %d\n", &time_corriere, &capienza);
-    DEBUG(printf("[debug] %d %d\n", time_corriere, capienza));
+    DEBUG2(printf("[debug] %d %d\n", time_corriere, capienza));
     do{
         if (time != 0 && time % time_corriere == 0){
-            if (ordini_completati != NULL){
+            if (ordini_completati->head == NULL){
                 fprintf(stdout, "camioncino vuoto\n");
             }
             else{
-                puntatore_ordine carico = seleziona_ordini_camioncino(capienza);
+                puntatore_ordine carico = seleziona_ordini_camioncino(capienza, ht_ricette);
                 put_ordine(carico);
                 free_carico(carico);
             }
@@ -536,18 +592,23 @@ int main()
                 comando[i] = '\0';
             }
         }
-        DEBUG(printf("[debug] nuovo comando %s\n", comando, r2));
+        DEBUG2(printf("[debug] %s\n", comando, r2));
         count = 0;
         tokens = str_split(comando, ' ', &count);
+        DEBUG3(printf("[debug] A.0\n");)
+        /*
+        if (strstr(comando, "exit") != NULL) {
+            break;
+        }
+        //*/
         if (comando[0] == 'a' && comando[1] == 'g' && comando[2] == 'g'){
             ric = *(tokens + 1);
-            ptr_ric = seek_ricetta_hashtable(ht_ricette, ric);
-        
+            puntatore_ricetta ptr_ric = seek_ricetta_hashtable(ht_ricette, ric);
+
             if (ptr_ric != NULL){
                 fprintf(stdout, "ignorato\n");
             }
-            else
-            {
+            else{
                 puntatore_ingrediente list_ingredienti = NULL;
                 int i = 0;
                 int weight = 0;
@@ -562,14 +623,17 @@ int main()
                     i++;
                 }
                 puntatore_ricetta new_ric = crea_ricetta(ric, weight, 0, list_ingredienti);
-                
+
                 add_ricetta_hashtable(ht_ricette, new_ric);
                 fprintf(stdout,"aggiunta\n");
             }
         }
         if (comando[0] == 'r' && comando[1] == 'i' && comando[2] == 'm'){
             ric = *(tokens + 1);
-            ptr_ric = seek_ricetta_hashtable(ht_ricette, ric);
+            puntatore_ricetta ptr_ric = seek_ricetta_hashtable(ht_ricette, ric);
+            if(ptr_ric != NULL){
+                fprintf(stdout, "[debug] ordini sospesi: '%d'\n", ptr_ric->num_ordini_sospeso);
+            }
             if (ptr_ric == NULL){
                 fprintf(stdout, "non presente\n");
             }
@@ -582,43 +646,53 @@ int main()
             }
         }
         if (comando[0] == 'r' && comando[1] == 'i' && comando[2] == 'f'){
+            char* ing;
+            char* sub;
+            int qnt;
+            int scd;
             int i = 0;
+            DEBUG3(printf("[debug] R.1\n");)
             while (*(tokens + 1 + (3 * i)) != NULL)
             {
-                char * ing;
                 ing = *(tokens + 1 + (3 * i));
+                DEBUG(printf("[debug] ing: '%s'\n", ing);)
                 sub = *(tokens + 2 + (3 * i));
+                DEBUG(printf("[debug] sub: '%s'\n", sub);)
                 qnt = atoi(sub);
+                DEBUG(printf("[debug] qnt: '%d'\n", qnt);)
                 sub = *(tokens + 3 + (3 * i));
+                DEBUG(printf("[debug] sub: '%s'\n", sub);)
                 scd = atoi(sub);
+                DEBUG(printf("[debug] scd: '%d'\n", scd);)
                 puntatore_lotto new_lotto = crea_lotto(qnt, scd);
                 aggiungi_lotto_a_mgz(ht_magazzino, ing, new_lotto);
                 i++;
             }
+            DEBUG3(printf("[debug] R.2\n");)
             fprintf(stdout, "rifornito\n");
             ordini_in_sospeso->head = check_ordiniSospesi(ordini_in_sospeso->head, ht_ricette, ht_magazzino);
         }
         if (comando[0] == 'o' && comando[1] == 'r' && comando[2] == 'd'){
+            DEBUG3(printf("[debug] O.1\n");)
             ric = *(tokens + 1);
             sub = *(tokens + 2);
             qnt = atoi(sub);
-            if (seek_ricetta_hashtable(ht_ricette, ric) == NULL)
-            {
+            DEBUG3(printf("[debug] O.2\n");)
+            if (seek_ricetta_hashtable(ht_ricette, ric) == NULL){
                 fprintf(stdout, "rifiutato\n");
             }
-            else
-            {
-                fprintf(stdout, "accettato\n");
+            else{
                 puntatore_ordine new_ord = crea_ordine(ric, qnt, ht_ricette);
                 int ordine_fattibile = is_ordine_fattibile(new_ord, ht_ricette, ht_magazzino);
-                printf("ordine_creato%d\n",ordine_fattibile);
+                DEBUG(printf("[debug] ordine_creato\n[debug] is_fattibile: '%d'\n",ordine_fattibile);)
                 if (ordine_fattibile == 1){
                     make_ordine(new_ord, ht_ricette, ht_magazzino);
                     add_ordine_in_coda(ordini_completati, new_ord);
                 }else{
                     add_ordine_in_coda(ordini_in_sospeso, new_ord);
-                    printf("aggiungo ordine in sospeso -- %s\n", new_ord->ricetta);
                 }
+                set_new_ordine_per_ricetta(new_ord, '+', ht_ricette);
+                fprintf(stdout, "accettato\n");
             }
         }
         time++;
