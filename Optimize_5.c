@@ -137,11 +137,10 @@ puntatore_coda_ordini ordini_completati;
 
 void stampa_ordini(puntatore_ordine head_ord, char * prefix)
 {
-    return;
     puntatore_ordine curr_ord = head_ord;
     while (curr_ord != NULL)
     {
-        fprintf(stdout, "[debug] %s in sospeso: %d %s %d\n", prefix, curr_ord->time, curr_ord->ricetta, curr_ord->quantita);
+        fprintf(stdout, "[debug] %s : %d %s quantita %d peso %d\n", prefix, curr_ord->time, curr_ord->ricetta, curr_ord->quantita, curr_ord->weight);
         curr_ord = curr_ord->next;
     }
 }
@@ -361,23 +360,25 @@ void aggiungi_lotto_a_mgz(hashtable_magazzino ht_mgz, char *ing, puntatore_lotto
 }
 
 void rimuovi_lotti_scaduti_per_ingrediente(puntatore_magazzino ingrediente)
-{
-    for (puntatore_lotto curr_lotto = ingrediente->lotti; curr_lotto != NULL;)
+{   
+
+    puntatore_lotto primo_lotto_magazzino = ingrediente->lotti;
+    
+    puntatore_lotto primo_lotto_non_scaduto = primo_lotto_magazzino;
+    while(primo_lotto_non_scaduto && primo_lotto_non_scaduto->scadenza <= time)
     {
-       // printf("[debug] O.3 %d %s %d\n", curr_lotto->quantita, ingrediente->ingrediente, ingrediente->quantita_tot);
-        if (curr_lotto->scadenza <= time)
-        {
-            //printf("[debug] O.4 %d %s\n", curr_lotto->quantita, ingrediente->ingrediente);
-            ingrediente->quantita_tot = ingrediente->quantita_tot - curr_lotto->quantita;
-            ingrediente->lotti = curr_lotto->next;
-            puntatore_lotto temp = curr_lotto;
-            curr_lotto = curr_lotto->next;
-            free(temp);
-            continue;
-        }
-        //printf("[debug] O.5 %d %s\n", curr_lotto->quantita, ingrediente->ingrediente,ingrediente->quantita_tot);
-        curr_lotto = curr_lotto->next;
+        primo_lotto_non_scaduto = primo_lotto_non_scaduto->next;
     }
+
+    puntatore_lotto to_delete = primo_lotto_magazzino;
+    while(to_delete != primo_lotto_non_scaduto){
+        puntatore_lotto temp = to_delete;
+        ingrediente->quantita_tot = ingrediente->quantita_tot - temp->quantita;
+        to_delete = to_delete->next;
+        free(temp);
+    }
+    ingrediente->lotti = primo_lotto_non_scaduto;
+   
 }
 
 puntatore_magazzino remove_magazzino(hashtable_magazzino ht_mgz, puntatore_magazzino to_remove)
@@ -406,21 +407,20 @@ puntatore_magazzino remove_magazzino(hashtable_magazzino ht_mgz, puntatore_magaz
 
 int is_ordine_fattibile(puntatore_ordine ord, hashtable_ricette ht_ricette, hashtable_magazzino ht_mgz)
 {
-    DEBUG(printf("[debug] is_ordine_fattibile %s\n", ord->ricetta));
     puntatore_ricetta ric_ord = seek_ricetta_hashtable(ht_ricette, ord->ricetta);
     puntatore_ingrediente curr_ing = ric_ord->ingredienti;
-
-    
+       
     while (curr_ing != NULL)
     {
     
         puntatore_magazzino curr_mgz = seek_magazzino(ht_mgz, curr_ing->name);
-        
+        if(!curr_mgz){
+            return 0;
+        }
         rimuovi_lotti_scaduti_per_ingrediente(curr_mgz);
         
         if (!curr_mgz->lotti)
         {
-
             remove_magazzino(ht_mgz, curr_mgz);
             return 0;
         }
@@ -454,6 +454,7 @@ puntatore_ordine crea_ordine(char *nome_ricetta, int quantita, hashtable_ricette
     new_ordine->ricetta = ricetta->name;
     new_ordine->quantita = quantita;
     new_ordine->is_done = 0;
+    //printf("[debug] [crea_ordine] %d %d\n", ricetta->weight, new_ordine->quantita);
     new_ordine->weight = quantita * ricetta->weight;
     new_ordine->time = time;
     new_ordine->next = NULL;
@@ -494,9 +495,9 @@ void cancella_ricetta_hashtable(hashtable_ricette ht, puntatore_ricetta ricetta_
 
 puntatore_ordine add_ordine_peso(puntatore_ordine carico, puntatore_ordine ord)
 {
+    //printf("[debug] provo ad inserire ordine con peso %d\n", ord->weight);
    if (carico == NULL)
     {
-        //printf("[debug] AOP.2\n");
         carico = ord;
         return carico;
     }
@@ -504,24 +505,26 @@ puntatore_ordine add_ordine_peso(puntatore_ordine carico, puntatore_ordine ord)
         ord->next = carico;
         return ord;
     }
-    puntatore_ordine curr_ord = carico;
+    puntatore_ordine curr_ord = carico->next;
+    puntatore_ordine prec = carico;
     DEBUG2(printf("[debug] AOP.3\n");)
-    while (curr_ord->next != NULL && curr_ord->weight >= ord->weight)
+    while (curr_ord != NULL && curr_ord->weight >= ord->weight)
     {
+        prec = curr_ord;
         curr_ord = curr_ord->next;
     }
-    if (curr_ord->next == NULL)
+    if (curr_ord == NULL)
     {
         //printf("[debug] AOP.4.1\n");
-        curr_ord->next = ord;
+        prec->next = ord;
         ord->next = NULL;
     }
     else
     {
-        //printf("[debug] AOP.4.2\n");
-        ord->next = curr_ord->next;
-        curr_ord->next = ord;
+        prec->next = ord;
+        ord->next = curr_ord;
     }
+
     return carico;
 }
 
@@ -531,9 +534,7 @@ void set_new_ordine_per_ricetta(puntatore_ordine ord, int aggiungi, hashtable_ri
     ric->num_ordini_sospeso = ric->num_ordini_sospeso + aggiungi;
 }
 puntatore_ordine seleziona_ordini_camioncino(int capienza, hashtable_ricette ht_ricette)
-{
-
-    
+{   
     puntatore_ordine completo = ordini_completati->head;
     while(completo){
         //printf("[debug] [seleziona_ordini_camioncino] ordine: %d %s %d\n", completo->time, completo->ricetta, completo->quantita);
@@ -548,6 +549,9 @@ puntatore_ordine seleziona_ordini_camioncino(int capienza, hashtable_ricette ht_
         puntatore_ordine next_pronto = head_ordini_pronti->next;
         head_ordini_pronti->next = NULL;
         carico = add_ordine_peso(carico, head_ordini_pronti);
+           // printf("[debug] carico temporaneo\n");
+    //stampa_ordini(carico, "carico temporaneo");
+    //printf("[debug] \n\n");
         set_new_ordine_per_ricetta(head_ordini_pronti, -1, ht_ricette);
         
         head_ordini_pronti = next_pronto;
@@ -558,6 +562,7 @@ puntatore_ordine seleziona_ordini_camioncino(int capienza, hashtable_ricette ht_
     if(!ordini_completati->head){
         ordini_completati->tail = NULL;
     }
+    stampa_ordini(ordini_in_sospeso->head, "sospeso ");
     return carico;
 }
 void put_ordine(puntatore_ordine ord)
@@ -755,6 +760,7 @@ int main()
                     qnt = atoi(sub);
                     list_ingredienti = aggiungi_ingrediente_in_lista(list_ingredienti, ing, qnt);
                     weight = weight + qnt;
+                    //printf("[debug] creo ricetta con peso %d %d\n", weight,qnt);
                     i++;
                 }
                 puntatore_ricetta new_ric = crea_ricetta(ric, weight, 0, list_ingredienti);
@@ -844,7 +850,7 @@ int main()
                 }
                 set_new_ordine_per_ricetta(new_ord, '+', ht_ricette);
                 fprintf(stdout, "accettato\n");
-                stampa_ordini(ordini_in_sospeso->head,"ordini_in_sospeso");
+                //stampa_ordini(ordini_in_sospeso->head,"ordini_in_sospeso");
             }
         }
         time++;
