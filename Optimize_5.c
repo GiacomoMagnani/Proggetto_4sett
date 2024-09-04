@@ -118,6 +118,7 @@ puntatore_coda_ordini ordini_in_sospeso;
 puntatore_coda_ordini ordini_completati;
 
 void add_ordine_in_coda(puntatore_coda_ordini ordini ,puntatore_ordine new_ord ){
+    
     if(!ordini->tail){
         ordini->head = new_ord;
         ordini->tail = ordini->head;
@@ -139,10 +140,12 @@ puntatore_ingrediente crea_ingr(char *ing, int qnt)
     new_ing->next = NULL;
     return new_ing;
 }
-void aggiungi_ingrediente_in_lista(puntatore_ingrediente head, char *ing, int qnt){
+puntatore_ingrediente  aggiungi_ingrediente_in_lista(puntatore_ingrediente head, char *ing, int qnt){
+    puntatore_ingrediente new_head = head;
     if (head == NULL)
     {
         head = crea_ingr(ing, qnt);
+        new_head = head;
     }
     else
     {
@@ -154,6 +157,7 @@ void aggiungi_ingrediente_in_lista(puntatore_ingrediente head, char *ing, int qn
         puntatore_ingrediente new_ing = crea_ingr(ing, qnt);
         curr_ing->next = new_ing;
     }
+    return new_head;
 }
 puntatore_ricetta crea_ricetta(char *name, int weight, int ord, puntatore_ingrediente ing){
     puntatore_ricetta new_ric = (puntatore_ricetta)malloc(sizeof(ricetta));
@@ -286,11 +290,14 @@ void aggiungi_lotto_a_mgz(hashtable_magazzino ht_mgz, char *ing, puntatore_lotto
     }
 }
 int is_ordine_fattibile(puntatore_ordine ord, hashtable_ricette ht_ricette, hashtable_magazzino ht_mgz){
+    DEBUG(printf("[debug] is_ordine_fattibile %s\n", ord->ricetta));
     puntatore_ricetta ric_ord = seek_ricetta_hashtable(ht_ricette, ord->ricetta);
     puntatore_ingrediente curr_ing = ric_ord->ingredienti;
+        
     while (curr_ing != NULL){
+        DEBUG(printf("[debug] [is_ordine_fattibile] check-ingrediente %s\n", curr_ing->name));
         puntatore_magazzino curr_mgz = seek_magazzino(ht_mgz, curr_ing->name);
-        if (curr_ing->quantita * ord->quantita > curr_mgz->quantita_tot)
+        if (curr_mgz==NULL || curr_ing->quantita * ord->quantita > curr_mgz->quantita_tot)
         {
             return 0;
         }
@@ -478,6 +485,9 @@ void remove_lotti_scd(hashtable_magazzino ht_mgz){
 
 int main()
 {
+    ordini_in_sospeso = (puntatore_coda_ordini) calloc(1, sizeof(coda_ordini));
+    ordini_completati = (puntatore_coda_ordini) calloc(1, sizeof(coda_ordini));
+    
     // DA DOVE PRENDERE L'INPUT
     FILE *in1 = stdin;
     //FILE* in1 = fopen("C:\\Users\\Giacomo\\Desktop\\Prog_API\\Open_rand.txt", "r");
@@ -497,15 +507,14 @@ int main()
     char **tokens;
     hashtable_ricette ht_ricette = crea_hashtable_ricette();
     hashtable_magazzino ht_magazzino = crea_hashtable_magazzino();
-    puntatore_ordine head_ord = NULL;
 
     // GESTIONE SINGOLE PARTI DI CODICE
     puntatore_ricetta ptr_ric;
 
     // EXEC
-    printf("[debug] start\n");
+    DEBUG(printf("[debug] start\n"));
     fscanf(in1, "%d %d\n", &time_corriere, &capienza);
-    printf("[debug] %d %d\n", time_corriere, capienza);
+    DEBUG(printf("[debug] %d %d\n", time_corriere, capienza));
     do{
         if (time != 0 && time % time_corriere == 0){
             if (ordini_completati != NULL){
@@ -548,7 +557,7 @@ int main()
                     ing = *(tokens + 2 + (2 * i));
                     sub = *(tokens + 3 + (2 * i));
                     qnt = atoi(sub);
-                    aggiungi_ingrediente_in_lista(list_ingredienti, ing, qnt);
+                    list_ingredienti = aggiungi_ingrediente_in_lista(list_ingredienti, ing, qnt);
                     weight = weight + qnt;
                     i++;
                 }
@@ -601,12 +610,14 @@ int main()
             {
                 fprintf(stdout, "accettato\n");
                 puntatore_ordine new_ord = crea_ordine(ric, qnt, ht_ricette);
-                int ordine_fattibile = is_ordine_fattibile(head_ord, ht_ricette, ht_magazzino);
+                int ordine_fattibile = is_ordine_fattibile(new_ord, ht_ricette, ht_magazzino);
+                printf("ordine_creato%d\n",ordine_fattibile);
                 if (ordine_fattibile == 1){
                     make_ordine(new_ord, ht_ricette, ht_magazzino);
                     add_ordine_in_coda(ordini_completati, new_ord);
                 }else{
                     add_ordine_in_coda(ordini_in_sospeso, new_ord);
+                    printf("aggiungo ordine in sospeso -- %s\n", new_ord->ricetta);
                 }
             }
         }
