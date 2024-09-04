@@ -4,6 +4,9 @@
 #include <assert.h>
 #define DIM_HASH_TABLE 100
 
+#define SHOULD_PRINT_DEBUG 0
+#define DEBUG(command) if(SHOULD_PRINT_DEBUG) command
+
 int time = 0;
 
 char **str_split(char *a_str, const char a_delim, int *count){
@@ -29,12 +32,12 @@ char **str_split(char *a_str, const char a_delim, int *count){
     /* Add space for terminating null string so caller
        knows where the list of returned strings ends. */
     (*count)++;
-    printf("[debug] A.5 %d\n", *count);
+    DEBUG(printf("[debug] A.5 %d\n", *count);)
     result = malloc(sizeof(char *) * (*count));
-    printf("[debug] A.6\n");
+    DEBUG(printf("[debug] A.6\n"));
     if (result)
     {
-        printf("[debug] A.7\n");
+        DEBUG(printf("[debug] A.7\n"));
         size_t idx = 0;
         char *token = strtok(a_str, delim);
         while (token)
@@ -46,7 +49,7 @@ char **str_split(char *a_str, const char a_delim, int *count){
         assert(idx == (*count) - 1);
         *(result + idx) = 0;
     }
-    printf("[debug] A.8\n");
+    DEBUG(printf("[debug] A.8\n"));
     // printf("[debug] count %d\n", (*count));
     return result;
 }
@@ -69,7 +72,7 @@ typedef struct ingrediente{
 typedef ingrediente* puntatore_ingrediente;
 
 typedef struct ricetta{
-    char *name;
+    char name[30];
     int weight;
     int num_ordini_sospeso;
     puntatore_ingrediente ingredienti; // lista ingredienti ricetta
@@ -175,13 +178,16 @@ puntatore_ricetta seek_lista_ricette(puntatore_ricetta head, const char *name){
 }
 puntatore_ricetta seek_ricetta_hashtable(hashtable_ricette ht, const char *nome_ric){
     size_t hash_indice = hash_string(nome_ric);
+    DEBUG(printf("[debug] A.10 %ld %s\n", hash_indice, nome_ric);)
     puntatore_ricetta pointer_ric = seek_lista_ricette(ht[hash_indice], nome_ric);
     return pointer_ric;
 }
-void aggiungi_ricetta(puntatore_ricetta curr, puntatore_ricetta new_ric){
+puntatore_ricetta aggiungi_ricetta(puntatore_ricetta curr, puntatore_ricetta new_ric){
+    puntatore_ricetta new_head = curr;
     if (curr == NULL)
     {
         curr = new_ric;
+        new_head = new_ric;
     }
     else
     {
@@ -191,11 +197,12 @@ void aggiungi_ricetta(puntatore_ricetta curr, puntatore_ricetta new_ric){
         }
         curr->next = new_ric;
     }
+    return new_head;
 }
 void add_ricetta_hashtable(hashtable_ricette ht, puntatore_ricetta new_ric){
     size_t hash_indice = hash_string(new_ric->name) ;
     puntatore_ricetta curr_ric = ht[hash_indice];
-    aggiungi_ricetta(curr_ric, new_ric);
+    ht[hash_indice] = aggiungi_ricetta(curr_ric, new_ric);
 }
 void free_ing(puntatore_ricetta curr_ric){
     puntatore_ingrediente curr_ing = curr_ric->ingredienti;
@@ -370,7 +377,7 @@ puntatore_ordine seleziona_ordini_camioncino(int capienza){
 void put_ordine (puntatore_ordine ord){
     puntatore_ordine curr = ord;
     while(curr != NULL){
-        fprintf(stdout, "%d %s %s\n", curr->time, curr->ricetta, curr->quantita);
+        fprintf(stdout, "%d %s %d\n", curr->time, curr->ricetta, curr->quantita);
     }
 }
 puntatore_lotto remove_lotto (puntatore_lotto head_lotto, puntatore_lotto to_remove){
@@ -405,7 +412,9 @@ puntatore_lotto remove_lotti_a_zero(puntatore_lotto head_lotto, int residuo){
             head_lotto = remove_lotto(head_lotto, temp);
         }
     }
+    return head_lotto;
 }
+
 void make_ordine(puntatore_ordine ord, hashtable_ricette ht_ricette, hashtable_magazzino ht_mgz){
     puntatore_ricetta ric_ord = seek_ricetta_hashtable(ht_ricette, ord->ricetta);
     puntatore_ingrediente curr_ing = ric_ord->ingredienti;
@@ -470,19 +479,17 @@ void remove_lotti_scd(hashtable_magazzino ht_mgz){
 int main()
 {
     // DA DOVE PRENDERE L'INPUT
-    //FILE *in1 = stdin;
+    FILE *in1 = stdin;
     //FILE* in1 = fopen("C:\\Users\\Giacomo\\Desktop\\Prog_API\\Open_rand.txt", "r");
-    FILE* in1 = fopen("C:\\Users\\Giacomo\\Desktop\\Prog_API\\comandi.txt", "r");
+    //FILE* in1 = fopen("C:\\Users\\Giacomo\\Desktop\\Prog_API\\comandi.txt", "r");
 
     // GESTIONE DEL COMANDO
-    int boo;
-    int r1;
     char r2;
 
     int time_corriere, capienza;
     char comando[1000];
     char *ric;
-    char *ing;
+    
     int qnt;
     int scd;
     char *sub;
@@ -497,9 +504,8 @@ int main()
 
     // EXEC
     printf("[debug] start\n");
-    r1 = fscanf(in1, "%d %d\n", &time_corriere, &capienza);
+    fscanf(in1, "%d %d\n", &time_corriere, &capienza);
     printf("[debug] %d %d\n", time_corriere, capienza);
-    r1--;
     do{
         if (time != 0 && time % time_corriere == 0){
             if (ordini_completati != NULL){
@@ -512,14 +518,22 @@ int main()
             }
         }
         r2 = (long int)fgets(comando, sizeof(comando), in1);
+        if(!r2){
+            break;
+        }
         comando[strlen(comando)] = '\0';
-        printf("[debug] %s\n", comando);
+        for(int i = 0 ; i < strlen(comando); i++){
+            if(comando[i] == '\n'){
+                comando[i] = '\0';
+            }
+        }
+        DEBUG(printf("[debug] nuovo comando %s\n", comando, r2));
         count = 0;
         tokens = str_split(comando, ' ', &count);
-
         if (comando[0] == 'a' && comando[1] == 'g' && comando[2] == 'g'){
             ric = *(tokens + 1);
             ptr_ric = seek_ricetta_hashtable(ht_ricette, ric);
+        
             if (ptr_ric != NULL){
                 fprintf(stdout, "ignorato\n");
             }
@@ -530,6 +544,7 @@ int main()
                 int weight = 0;
                 while (*(tokens + 2 + (2 * i)) != NULL)
                 {
+                    char *ing;
                     ing = *(tokens + 2 + (2 * i));
                     sub = *(tokens + 3 + (2 * i));
                     qnt = atoi(sub);
@@ -538,6 +553,7 @@ int main()
                     i++;
                 }
                 puntatore_ricetta new_ric = crea_ricetta(ric, weight, 0, list_ingredienti);
+                
                 add_ricetta_hashtable(ht_ricette, new_ric);
                 fprintf(stdout,"aggiunta\n");
             }
@@ -558,9 +574,9 @@ int main()
         }
         if (comando[0] == 'r' && comando[1] == 'i' && comando[2] == 'f'){
             int i = 0;
-            int weight = 0;
             while (*(tokens + 1 + (3 * i)) != NULL)
             {
+                char * ing;
                 ing = *(tokens + 1 + (3 * i));
                 sub = *(tokens + 2 + (3 * i));
                 qnt = atoi(sub);
