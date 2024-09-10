@@ -119,6 +119,84 @@ typedef struct ingredient_t
 } ingredient;
 typedef ingredient *ingredient_ptr;
 
+
+
+// DEBUG FUNCTIONS
+void print_warehouse_item(warehouse_item_ptr item)
+{
+    printf("Warehouse item: %s\n", item->name);
+    printf("Quantity: %d\n", item->quantity_total_in_stock);
+    printf("Batches:\n");
+    linked_list_node_ptr current_batch = item->batches->head;
+    while (current_batch != NULL)
+    {
+        item_batch_ptr current_item_batch = (item_batch_ptr)current_batch->data;
+        printf("Quantity: %d\n", current_item_batch->quantity);
+        printf("Expiration date: %d\n", current_item_batch->expiration_date);
+        current_batch = current_batch->next;
+    }
+}
+
+void print_entire_warehouse(hashtable_warehouse_t hashtable_warehouse)
+{
+    printf("------WAREHOUSE------\n");
+    for (int i = 0; i < HASHTABLE_SIZE; ++i)
+    {
+        linked_list_ptr current_list = hashtable_warehouse[i];
+        if (current_list->length <= 0)
+        {
+            continue;
+        }
+        linked_list_node_ptr current_item = current_list->head;
+        while (current_item != NULL)
+        {
+            warehouse_item_ptr current_warehouse_item = (warehouse_item_ptr)current_item->data;
+            print_warehouse_item(current_warehouse_item);
+            current_item = current_item->next;
+        }
+    }
+    printf("------END OF WAREHOUSE------\n");
+}
+
+void print_recipe_ingredients(linked_list_ptr ingredients)
+{
+    linked_list_node_ptr current_ingredient = ingredients->head;
+    while (current_ingredient != NULL)
+    {
+        ingredient_ptr current_ingredient_data = (ingredient_ptr)current_ingredient->data;
+        printf("(name: %s, qnt:%d)", current_ingredient_data->name,current_ingredient_data->quantity);
+        
+        //print_warehouse_item(current_ingredient_data->warehouse_item_info);
+        current_ingredient = current_ingredient->next;
+        if(current_ingredient)
+            printf(", ");
+    }
+    printf("\n");
+}
+
+void print_recipes(hashtable_ricette_t hashtable_ricette){
+    printf("------RECIPES------\n");
+    for(int i = 0 ; i < HASHTABLE_SIZE; i++){
+        linked_list_ptr current_list = hashtable_ricette[i];
+        if(current_list->length <= 0){
+            continue;
+        }
+        linked_list_node_ptr current_recipe = current_list->head;
+        while(current_recipe != NULL){
+            recipe_ptr current_recipe_data = (recipe_ptr)current_recipe->data;
+            printf("[debug] Recipe: %s\n", current_recipe_data->name);
+            printf("[debug] Weight: %d\n", current_recipe_data->weight);
+            printf("[debug] Pending orders: %d\n", current_recipe_data->pending_orders);
+            printf("[debug] Ingredients:");
+            print_recipe_ingredients(current_recipe_data->ingredients);
+            printf("\n");
+            current_recipe = current_recipe->next;
+        }
+    }
+}
+
+
+
 hashtable_warehouse_t hashtable_warehouse;
 
 hashtable create_hashtable()
@@ -134,7 +212,7 @@ hashtable create_hashtable()
 void *find_in_hashtable(hashtable hashtable, int (*name_match)(void *, char *), char *name)
 {
     size_t hash_indice = hash_string(name);
-    printf("[debug] Finding: %s in hashtable at index %zu\n", name, hash_indice);
+    //printf("[debug] Finding: %s in hashtable at index %zu\n", name, hash_indice);
     linked_list_ptr current_recipe = hashtable[hash_indice];
     if (!current_recipe)
         return NULL;
@@ -159,7 +237,7 @@ int recipe_name_match(void *recipe, char *recipe_name)
 
 recipe_ptr find_recipe(hashtable_ricette_t hashtable_ricette, char *recipe_name)
 {
-    printf("[debug] Finding recipe: %s\n", recipe_name);
+    //printf("[debug] Finding recipe: %s\n", recipe_name);
     recipe_ptr found_recipe = (recipe_ptr)find_in_hashtable(hashtable_ricette, recipe_name_match, recipe_name);
     return found_recipe;
 }
@@ -203,15 +281,15 @@ void consume_input()
     while (!is_new_line(c))
     {
         if(!printed){
-            printf("[debug] Consuming: ");
+            //printf("[debug] Consuming: ");
         }
-        printf("%c", c);
+        //printf("%c", c);
         c = getchar();
         printed = 1;
     }
     if (printed)
     {
-        printf("\n");
+        //printf("\n");
     }
 }
 
@@ -243,6 +321,7 @@ void add_new_recipe(hashtable_ricette_t hashtable_ricette, char *recipe_name, li
     linked_list_push(current_list, new_recipe);
 }
 
+
 void handle_add_recipe_command()
 {
     char recipe_name[MAXIMUM_IDENTIFIER_LENGHT];
@@ -270,47 +349,54 @@ void handle_add_recipe_command()
         total_recipe_quantity += ingredient_quantity;
         ingredient_ptr new_ingredient = create_new_ingredient(ingredient_name, ingredient_quantity);
         linked_list_push(ingredients, new_ingredient);
-        printf("[debug] ingredient: '%s' quantity '%s' '%d'\n", recipe_name, ingredient_name, ingredient_quantity);
+        //printf("[debug] ingredient: '%s' quantity '%s' '%d'\n", recipe_name, ingredient_name, ingredient_quantity);
     }
     add_new_recipe(hashtable_ricette, recipe_name, ingredients, total_recipe_quantity);
-    printf("[debug] Recipe DONE: %s\n", recipe_name);
+    //printf("[debug] Recipe DONE: %s\n", recipe_name);
+    print_recipes(hashtable_ricette);
 }
 
-// DEBUG FUNCTIONS
-void print_warehouse_item(warehouse_item_ptr item)
+
+void free_ingredient(void* raw_ingredient)
 {
-    printf("Warehouse item: %s\n", item->name);
-    printf("Quantity: %d\n", item->quantity_total_in_stock);
-    printf("Batches:\n");
-    linked_list_node_ptr current_batch = item->batches->head;
-    while (current_batch != NULL)
-    {
-        item_batch_ptr current_item_batch = (item_batch_ptr)current_batch->data;
-        printf("Quantity: %d\n", current_item_batch->quantity);
-        printf("Expiration date: %d\n", current_item_batch->expiration_date);
-        current_batch = current_batch->next;
-    }
+    ingredient_ptr ingredient = (ingredient_ptr)raw_ingredient;
+    free(ingredient->name);
+    free(ingredient);
+}
+void free_recipe(void* raw_recipe)
+{
+    recipe_ptr recipe = (recipe_ptr)raw_recipe;
+    free(recipe->name);
+    linked_list_destroy(recipe->ingredients, free_ingredient);
+    free(recipe);
 }
 
-void print_entire_warehouse(hashtable_warehouse_t hashtable_warehouse)
+void remove_recipe(hashtable_ricette_t hashtable_ricette, recipe_ptr recipe_to_remove)
 {
-    printf("------WAREHOUSE------\n");
-    for (int i = 0; i < HASHTABLE_SIZE; ++i)
+    size_t hash_indice = hash_string(recipe_to_remove->name);
+    linked_list_ptr current_list = hashtable_ricette[hash_indice];
+    linked_list_remove_by_name(current_list, recipe_name_match, recipe_to_remove->name, free_recipe);
+}
+
+void handle_remove_recipe_command(){
+    char recipe_name[MAXIMUM_IDENTIFIER_LENGHT];
+    if (scanf("%s", recipe_name) != 1)
     {
-        linked_list_ptr current_list = hashtable_warehouse[i];
-        if (current_list->length <= 0)
-        {
-            continue;
-        }
-        linked_list_node_ptr current_item = current_list->head;
-        while (current_item != NULL)
-        {
-            warehouse_item_ptr current_warehouse_item = (warehouse_item_ptr)current_item->data;
-            print_warehouse_item(current_warehouse_item);
-            current_item = current_item->next;
-        }
+        panic("Invalid input");
     }
-    printf("------END OF WAREHOUSE------\n");
+    recipe_ptr found_recipe = find_recipe(hashtable_ricette, recipe_name);
+    if (!found_recipe)
+    {
+        printf("non presente\n");
+        return;
+    }
+    if(found_recipe->pending_orders > 0){
+        printf("ordini in sospeso\n");
+        return;
+    }
+    remove_recipe(hashtable_ricette, found_recipe);
+    print_recipes(hashtable_ricette);
+    printf("rimossa\n");
 }
 
 int main()
@@ -331,14 +417,14 @@ int main()
 
     while (scanf("%s", raw_command) == 1)
     {
-        printf("[debug] Command: %s\n", raw_command);
+        //printf("[debug] Command: %s\n", raw_command);
         switch (get_command(raw_command))
         {
         case ADD_RECIPE:
             handle_add_recipe_command();
             break;
         case REMOVE_RECIPE:
-            printf("REMOVE_RECIPE\n");
+            handle_remove_recipe_command();
             break;
         case REFILL:
             printf("REFILL\n");
@@ -350,7 +436,7 @@ int main()
             panic("Invalid command");
             break;
         }
-        printf("[debug] Command %s done @ time: %d\n", raw_command, current_time);
+        // %s done @ time: %d\n", raw_command, current_time);
         if (should_load_truck(current_time, truck_loading_interval))
         {
             load_truck();

@@ -26,7 +26,7 @@ int debug_var4 = 0;
     if (SHOULD_PRINT_DEBUG4) \
     command
 
-#define SHOULD_PRINT_DEBUG5 1
+#define SHOULD_PRINT_DEBUG5 0
 #define DEBUG5(command)      \
     if (SHOULD_PRINT_DEBUG5) \
     command
@@ -125,6 +125,22 @@ typedef struct magazzino
 } magazzino;
 typedef magazzino *puntatore_magazzino;
 typedef puntatore_magazzino *hashtable_magazzino;
+
+void put_hashtable_magazzino (hashtable_magazzino ht_mgz){
+    for(int i=0; i<DIM_HASH_TABLE; i++){
+        puntatore_magazzino curr_mgz = ht_mgz[i];
+        while(curr_mgz != NULL){
+            printf("[debug] ingrediente: %s quantita' tot: %d\n", ht_mgz[i]->ingrediente, ht_mgz[i]->quantita_tot);
+            puntatore_lotto curr_lotto = curr_mgz->lotti;
+            while(curr_lotto != NULL){
+                printf("[debug] \tquantita': %d scadenza: %d\n", curr_lotto->quantita, curr_lotto->scadenza);
+                curr_lotto = curr_lotto->next;
+            }
+            printf("\n");
+            curr_mgz = curr_mgz->next;
+        }
+    }
+}
 
 typedef struct ordine
 {
@@ -748,21 +764,7 @@ void check_ordiniSospesi(hashtable_ricette ht_ricette, hashtable_magazzino ht_mg
     }
 }
 
-void put_hashtable_magazzino (hashtable_magazzino ht_mgz){
-    for(int i=0; i<DIM_HASH_TABLE; i++){
-        puntatore_magazzino curr_mgz = ht_mgz[i];
-        while(curr_mgz != NULL){
-            printf("[debug] ingrediente: %s quantita' tot: %d\n", ht_mgz[i]->ingrediente, ht_mgz[i]->quantita_tot);
-            puntatore_lotto curr_lotto = curr_mgz->lotti;
-            while(curr_lotto != NULL){
-                printf("[debug] \tquantita': %d scadenza: %d\n", curr_lotto->quantita, curr_lotto->scadenza);
-                curr_lotto = curr_lotto->next;
-            }
-            printf("\n");
-            curr_mgz = curr_mgz->next;
-        }
-    }
-}
+
 
 int main()
 {
@@ -770,10 +772,10 @@ int main()
     ordini_completati = (puntatore_coda_ordini)calloc(1, sizeof(coda_ordini));
 
     // DA DOVE PRENDERE L'INPUT
-    //FILE *in1 = stdin;
+    FILE *in1 = stdin;
     //FILE* in1 = fopen("C:\\Users\\Giacomo\\Desktop\\Prog_API\\Open_rand.txt", "r");
     //FILE *in1 = fopen("C:\\Users\\Giacomo\\Desktop\\Prog_API\\comandi.txt", "r");
-    FILE *in1 = fopen("C:\\Users\\Giacomo\\Downloads\\open4.txt", "r");
+    //FILE *in1 = fopen("C:\\Users\\Giacomo\\Downloads\\open4.txt", "r");
 
     // GESTIONE DEL COMANDO
     int r1;
