@@ -1,0 +1,1 @@
+gcc -O2 -g -Wall -o progetto src/davide.c
