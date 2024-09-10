@@ -297,7 +297,7 @@ warehouse_item_ptr find_or_add_default_warehouse_item(hashtable_warehouse_t hash
 // GLOBALS
 hashtable_ricette_t hashtable_ricette;
 hashtable_warehouse_t hashtable_warehouse;
-int current_time = 1;
+int current_time = 0;
 int truck_capacity = 0;
 linked_list_ptr ready_orders;
 linked_list_ptr pending_orders;
@@ -543,7 +543,9 @@ void handle_add_order_command()
         printf("[debug] Order is processable\n");
         update_warehouse_on_order_processed(new_order);
         linked_list_push_back(ready_orders, new_order);
+        
         print_entire_warehouse(hashtable_warehouse);
+        print_order_list(ready_orders, "ready");
     }
     else
     {
@@ -581,6 +583,45 @@ void add_new_batch_to_warehouse_item(warehouse_item_ptr item, item_batch_ptr new
     linked_list_push_at_position(item->batches, new_batch, insert_position);
 }
 
+
+void free_order(void *raw_order)
+{
+    order_ptr order = (order_ptr)raw_order;
+    free(order);
+}
+
+
+void do_not_free(void *data)
+{
+    return;
+}
+
+void process_pending_orders(){
+    int some_order_processed = 0;
+    linked_list_node_ptr current_order = pending_orders->head;
+    while (current_order != NULL)
+    {
+        order_ptr current_order_data = (order_ptr)current_order->data;
+        if (is_order_processable_now(current_order_data))
+        {
+            update_warehouse_on_order_processed(current_order_data);
+            linked_list_push_back(ready_orders, current_order_data);
+            linked_list_node_ptr next_order = current_order->next;
+            linked_list_remove_node(pending_orders, current_order, do_not_free);
+            current_order = next_order;
+            some_order_processed = 1;
+        }
+        else
+        {
+            current_order = current_order->next;
+        }
+    }
+    if(some_order_processed){
+        print_order_list(ready_orders, "ready");
+        print_order_list(pending_orders, "pending");
+    }
+}
+
 void handle_warehouse_refill(){
    
     while(!is_new_line(getchar())){
@@ -596,6 +637,8 @@ void handle_warehouse_refill(){
         add_new_batch_to_warehouse_item(found_item, new_batch);
     }
     print_entire_warehouse(hashtable_warehouse);
+
+    process_pending_orders();
 }
 
 int main()
@@ -638,11 +681,11 @@ int main()
             break;
         }
         // %s done @ time: %d\n", raw_command, current_time);
+        ++current_time;
         if (should_load_truck(current_time, truck_loading_interval))
         {
             load_truck();
         }
-        ++current_time;
     }
     return 0;
 }

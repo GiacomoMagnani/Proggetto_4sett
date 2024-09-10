@@ -197,6 +197,29 @@ int linked_list_pop_front(linked_list_ptr list, void (*free_data)(void *))
   return linked_list_remove_at_position(list, 0, free_data);
 }
 
+int linked_list_remove_node(linked_list_ptr list,linked_list_node_ptr node_to_delete, void (*free_data)(void *)){
+    if(node_to_delete == NULL){
+        return NOK;
+    }
+    if(node_to_delete->previous == NULL){
+        list->head = node_to_delete->next;
+    }
+    else{
+        node_to_delete->previous->next = node_to_delete->next;
+    }
+
+    if(node_to_delete->next == NULL){
+        list->tail = node_to_delete->previous;
+    }
+    else{
+        node_to_delete->next->previous = node_to_delete->previous;
+    }
+    list->length--;
+    free_data(node_to_delete->data);
+    free(node_to_delete);
+    return OK;
+}
+
 int linked_list_destroy(linked_list_ptr list, void (*free_data)(void *))
 {
     int destroyed_nodes = 0;
