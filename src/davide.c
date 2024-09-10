@@ -7,6 +7,11 @@
 #define MAXIMUM_IDENTIFIER_LENGHT 256
 #define HASHTABLE_SIZE 10000
 
+int is_new_line(int c)
+{
+    return c == 13 || c == 10;
+}
+
 size_t hash_string(const char *str)
 {
     size_t hash = 5381;
@@ -63,8 +68,6 @@ void load_truck()
 {
     printf("LOAD_TRUCK\n");
 }
-
-
 
 int should_load_truck(int current_time, int truck_loading_interval)
 {
@@ -131,6 +134,7 @@ hashtable create_hashtable()
 void *find_in_hashtable(hashtable hashtable, int (*name_match)(void *, char *), char *name)
 {
     size_t hash_indice = hash_string(name);
+    printf("[debug] Finding: %s in hashtable at index %zu\n", name, hash_indice);
     linked_list_ptr current_recipe = hashtable[hash_indice];
     if (!current_recipe)
         return NULL;
@@ -155,6 +159,7 @@ int recipe_name_match(void *recipe, char *recipe_name)
 
 recipe_ptr find_recipe(hashtable_ricette_t hashtable_ricette, char *recipe_name)
 {
+    printf("[debug] Finding recipe: %s\n", recipe_name);
     recipe_ptr found_recipe = (recipe_ptr)find_in_hashtable(hashtable_ricette, recipe_name_match, recipe_name);
     return found_recipe;
 }
@@ -193,9 +198,21 @@ int truck_capacity = 0;
 
 void consume_input()
 {
-    char delimiter = '\n';
-    while (getchar() != delimiter)
-        ;
+    char c = getchar();
+    int printed = 0;
+    while (!is_new_line(c))
+    {
+        if(!printed){
+            printf("[debug] Consuming: ");
+        }
+        printf("%c", c);
+        c = getchar();
+        printed = 1;
+    }
+    if (printed)
+    {
+        printf("\n");
+    }
 }
 
 ingredient_ptr create_new_ingredient(char *name, int quantity)
@@ -206,6 +223,24 @@ ingredient_ptr create_new_ingredient(char *name, int quantity)
     new_ingredient->warehouse_item_info = find_in_warehouse(hashtable_warehouse, name);
 
     return new_ingredient;
+}
+
+recipe_ptr create_new_recipe(char *name, int weight, linked_list_ptr ingredients)
+{
+    recipe_ptr new_recipe = (recipe_ptr)malloc(sizeof(recipe));
+    new_recipe->name = strdup(name);
+    new_recipe->weight = weight;
+    new_recipe->pending_orders = 0;
+    new_recipe->ingredients = ingredients;
+    return new_recipe;
+}
+
+void add_new_recipe(hashtable_ricette_t hashtable_ricette, char *recipe_name, linked_list_ptr ingredients, int total_recipe_quantity)
+{
+    size_t hash_indice = hash_string(recipe_name);
+    linked_list_ptr current_list = hashtable_ricette[hash_indice];
+    recipe_ptr new_recipe = create_new_recipe(recipe_name, total_recipe_quantity, ingredients);
+    linked_list_push(current_list, new_recipe);
 }
 
 void handle_add_recipe_command()
@@ -222,22 +257,26 @@ void handle_add_recipe_command()
         return;
     }
     linked_list_ptr ingredients = linked_list_initialize();
-    while (getchar() != '\n')
+    int total_recipe_quantity = 0;
+    while (!is_new_line(getchar()))
     {
+
         char ingredient_name[MAXIMUM_IDENTIFIER_LENGHT];
         int ingredient_quantity;
         if (scanf("%s %d", ingredient_name, &ingredient_quantity) != 2)
         {
-            panic("Invalid input");
+            panic("Invalid input 2");
         }
-        printf("[debug] Command: %s %s %d\n", recipe_name, ingredient_name, ingredient_quantity);
+        total_recipe_quantity += ingredient_quantity;
         ingredient_ptr new_ingredient = create_new_ingredient(ingredient_name, ingredient_quantity);
         linked_list_push(ingredients, new_ingredient);
+        printf("[debug] ingredient: '%s' quantity '%s' '%d'\n", recipe_name, ingredient_name, ingredient_quantity);
     }
+    add_new_recipe(hashtable_ricette, recipe_name, ingredients, total_recipe_quantity);
     printf("[debug] Recipe DONE: %s\n", recipe_name);
 }
 
-//DEBUG FUNCTIONS
+// DEBUG FUNCTIONS
 void print_warehouse_item(warehouse_item_ptr item)
 {
     printf("Warehouse item: %s\n", item->name);
@@ -253,12 +292,14 @@ void print_warehouse_item(warehouse_item_ptr item)
     }
 }
 
-void print_entire_warehouse(hashtable_warehouse_t hashtable_warehouse){
+void print_entire_warehouse(hashtable_warehouse_t hashtable_warehouse)
+{
     printf("------WAREHOUSE------\n");
     for (int i = 0; i < HASHTABLE_SIZE; ++i)
     {
         linked_list_ptr current_list = hashtable_warehouse[i];
-        if(current_list->length <=0){
+        if (current_list->length <= 0)
+        {
             continue;
         }
         linked_list_node_ptr current_item = current_list->head;
@@ -279,22 +320,21 @@ int main()
     int truck_loading_interval = 0;
     char raw_command[MAXIMUM_COMMAND_LENGHT];
 
-   
-    if (scanf("%d %d", &truck_loading_interval,&truck_capacity) == EOF)
+    if (scanf("%d %d", &truck_loading_interval, &truck_capacity) != 2)
     {
         panic("Invalid input");
     }
-    
+    // consume_input();
+
     printf("[debug] Truck loading interval: %d\n", truck_loading_interval);
     printf("[debug] Truck capacity: %d\n", truck_capacity);
 
-    while (scanf("%s", raw_command) != EOF)
+    while (scanf("%s", raw_command) == 1)
     {
-        
+        printf("[debug] Command: %s\n", raw_command);
         switch (get_command(raw_command))
         {
         case ADD_RECIPE:
-        
             handle_add_recipe_command();
             break;
         case REMOVE_RECIPE:
@@ -310,6 +350,7 @@ int main()
             panic("Invalid command");
             break;
         }
+        printf("[debug] Command %s done @ time: %d\n", raw_command, current_time);
         if (should_load_truck(current_time, truck_loading_interval))
         {
             load_truck();
