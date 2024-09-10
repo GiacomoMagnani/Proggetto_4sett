@@ -146,17 +146,19 @@ void print_order_list(linked_list_ptr list, char *list_name)
 
 void print_warehouse_item(warehouse_item_ptr item)
 {
-    printf("Warehouse item: %s\n", item->name);
-    printf("Quantity: %d\n", item->quantity_total_in_stock);
-    printf("Batches:\n");
+    printf("Item: %s, quantity:%d \n", item->name, item->quantity_total_in_stock);
+    printf("Batches:");
     linked_list_node_ptr current_batch = item->batches->head;
     while (current_batch != NULL)
     {
         item_batch_ptr current_item_batch = (item_batch_ptr)current_batch->data;
-        printf("Quantity: %d\n", current_item_batch->quantity);
-        printf("Expiration date: %d\n", current_item_batch->expiration_date);
+        printf("(qnt: %d, exp_date: %d)", current_item_batch->quantity, current_item_batch->expiration_date);
+        
         current_batch = current_batch->next;
+        if(current_batch)
+            printf(", ");
     }
+    printf("\n");
 }
 
 void print_entire_warehouse(hashtable_warehouse_t hashtable_warehouse)
@@ -451,6 +453,8 @@ void delete_all_expired_batches(warehouse_item_ptr item)
         {
             item->quantity_total_in_stock -= current_batch_data->quantity;
             linked_list_pop_front(batch_list, free_batch);
+        }else{
+            break;
         }
     }
 }
@@ -477,12 +481,43 @@ int is_order_processable_now(order_ptr order)
         {
             return 0;
         }
+        current_ingredient = current_ingredient->next;
     }
     return 1;
 }
 
+void use_ingredient(ingredient_ptr ingredient, int quantity){
+    linked_list_node_ptr current_batch = ingredient->warehouse_item_info->batches->head;
+    while (current_batch != NULL && quantity > 0)
+    {
+        item_batch_ptr current_batch_data = (item_batch_ptr)current_batch->data;
+        if (current_batch_data->quantity > quantity)
+        {
+            current_batch_data->quantity -= quantity;
+            ingredient->warehouse_item_info->quantity_total_in_stock -= quantity;
+            break;
+        }
+        else
+        {
+            quantity -= current_batch_data->quantity;
+            ingredient->warehouse_item_info->quantity_total_in_stock -= current_batch_data->quantity;
+            linked_list_pop_front(ingredient->warehouse_item_info->batches, free_batch);
+        }
+        current_batch = ingredient->warehouse_item_info->batches->head;
+    }
+}
+
 void update_warehouse_on_order_processed(order_ptr order)
-{
+{ 
+    linked_list_node_ptr current_ingredient = order->recipe->ingredients->head;
+    while (current_ingredient != NULL)
+    {
+        const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->quantity;
+        const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
+        use_ingredient(current_ingredient->data,order_ingredient_required_quantity);
+        current_ingredient = current_ingredient->next;
+    }
+
 }
 
 void handle_add_order_command()
@@ -505,8 +540,10 @@ void handle_add_order_command()
     print_entire_warehouse(hashtable_warehouse);
     if (is_order_processable_now(new_order))
     {
+        printf("[debug] Order is processable\n");
         update_warehouse_on_order_processed(new_order);
         linked_list_push_back(ready_orders, new_order);
+        print_entire_warehouse(hashtable_warehouse);
     }
     else
     {
@@ -515,6 +552,50 @@ void handle_add_order_command()
     }
     // printf("[debug] Order: %s %d\n", recipe_name, order_quantity);
     // print_recipes(hashtable_ricette);
+}
+
+item_batch_ptr create_new_batch(int quantity, int expiration_date)
+{
+    item_batch_ptr new_batch = (item_batch_ptr)malloc(sizeof(item_batch));
+    new_batch->quantity = quantity;
+    new_batch->expiration_date = expiration_date;
+    return new_batch;
+}
+
+void add_new_batch_to_warehouse_item(warehouse_item_ptr item, item_batch_ptr new_batch)
+{
+    item->quantity_total_in_stock += new_batch->quantity;
+    //1 find the right position to insert so that batches are sorted by expiration date in ascending order
+    int insert_position = 0;
+    linked_list_node_ptr current_batch = item->batches->head;
+    while (current_batch != NULL)
+    {
+        item_batch_ptr current_batch_data = (item_batch_ptr)current_batch->data;
+        if (current_batch_data->expiration_date > new_batch->expiration_date)
+        {
+            break;
+        }
+        insert_position++;
+        current_batch = current_batch->next;
+    }
+    linked_list_push_at_position(item->batches, new_batch, insert_position);
+}
+
+void handle_warehouse_refill(){
+   
+    while(!is_new_line(getchar())){
+        char ingredient_name[MAXIMUM_IDENTIFIER_LENGHT];
+        int quantity;
+        int expiration_date;
+        if (scanf("%s %d %d", ingredient_name, &quantity, &expiration_date) != 3)
+        {
+           panic("Invalid input");
+        }
+        warehouse_item_ptr found_item = find_or_add_default_warehouse_item(hashtable_warehouse, ingredient_name);
+        item_batch_ptr new_batch = create_new_batch(quantity, expiration_date);
+        add_new_batch_to_warehouse_item(found_item, new_batch);
+    }
+    print_entire_warehouse(hashtable_warehouse);
 }
 
 int main()
@@ -547,7 +628,7 @@ int main()
             handle_remove_recipe_command();
             break;
         case REFILL:
-            printf("REFILL\n");
+            handle_warehouse_refill();
             break;
         case ORDER:
             handle_add_order_command();

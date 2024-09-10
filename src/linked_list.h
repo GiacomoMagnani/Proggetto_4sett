@@ -128,6 +128,35 @@ linked_list_node_ptr find_at_position(linked_list_ptr list, int position)
     return current;
 }
 
+int linked_list_push_at_position(linked_list_ptr list, void *data, int position)
+{
+   if(position < 0 || position > list->length){
+        return NOK;
+    }
+
+    linked_list_node_ptr newNode = linked_list_node_create(data);
+    if(position == 0){
+        linked_list_push_front(list, data);
+        return OK;
+    }
+    if(position == list->length){
+        linked_list_push_back(list, data);
+        return OK;
+    }
+    linked_list_node_ptr current = find_at_position(list, position);
+    if(current == NULL){
+        return NOK;
+    }
+
+    newNode->next = current;
+    newNode->previous = current->previous;
+    current->previous->next = newNode;
+    current->previous = newNode;
+    list->length++;
+    return OK;
+
+}
+
 int linked_list_remove_at_position(linked_list_ptr list, int position, void (*free_data)(void *))
 {
     if (position < 0 || position >= list->length)
