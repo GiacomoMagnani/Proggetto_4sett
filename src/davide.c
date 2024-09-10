@@ -64,10 +64,7 @@ COMMAND get_command(const char *command)
     return -1;
 }
 
-void load_truck()
-{
-    printf("LOAD_TRUCK\n");
-}
+
 
 int should_load_truck(int current_time, int truck_loading_interval)
 {
@@ -378,6 +375,7 @@ void handle_add_recipe_command()
         linked_list_push_back(ingredients, new_ingredient);
         // printf("[debug] ingredient: '%s' quantity '%s' '%d'\n", recipe_name, ingredient_name, ingredient_quantity);
     }
+    printf("aggiunta\n");
     add_new_recipe(hashtable_ricette, recipe_name, ingredients, total_recipe_quantity);
     // printf("[debug] Recipe DONE: %s\n", recipe_name);
     print_recipes(hashtable_ricette);
@@ -540,12 +538,12 @@ void handle_add_order_command()
     print_entire_warehouse(hashtable_warehouse);
     if (is_order_processable_now(new_order))
     {
-        printf("[debug] Order is processable\n");
         update_warehouse_on_order_processed(new_order);
         linked_list_push_back(ready_orders, new_order);
         
         print_entire_warehouse(hashtable_warehouse);
         print_order_list(ready_orders, "ready");
+        printf("[debug] Order is processable %s quantity %d\n", new_order->recipe->name, new_order->quantity);
     }
     else
     {
@@ -636,10 +634,67 @@ void handle_warehouse_refill(){
         item_batch_ptr new_batch = create_new_batch(quantity, expiration_date);
         add_new_batch_to_warehouse_item(found_item, new_batch);
     }
+    printf("rifornito\n");
     print_entire_warehouse(hashtable_warehouse);
 
     process_pending_orders();
 }
+
+void add_new_order_to_truck_orders(linked_list_ptr truck_orders, order_ptr order)
+{
+    int insert_position = 0;
+    linked_list_node_ptr current_order = truck_orders->head;
+    while (current_order != NULL)
+    {
+        order_ptr current_order_data = (order_ptr)current_order->data;
+        if (current_order_data->total_weight < order->total_weight)
+        {
+            break;
+        }
+        insert_position++;
+        current_order = current_order->next;
+    }
+    linked_list_push_at_position(truck_orders, order, insert_position);
+}
+
+void load_truck()
+{
+    linked_list_ptr truck_orders = linked_list_initialize();
+
+    int loaded_weight = 0;
+    while(loaded_weight < truck_capacity && ready_orders->head != NULL){
+        order_ptr current_order = (order_ptr)ready_orders->head->data;
+        if(loaded_weight + current_order->total_weight > truck_capacity){
+            break;
+        }
+        loaded_weight += current_order->total_weight;
+        printf("[debug] Loaded order: %s %d for total weight of %d\n", current_order->recipe->name, current_order->quantity, current_order->total_weight);
+        
+        linked_list_pop_front(ready_orders, do_not_free);
+
+        printf("[debug] Loaded order: %s %d\n", current_order->recipe->name, current_order->quantity);
+        add_new_order_to_truck_orders(truck_orders, current_order);
+        current_order->recipe->number_pending_orders--;
+    }
+    
+    {
+        linked_list_node_ptr current_order = truck_orders->head;
+        while (current_order != NULL)
+        {
+            order_ptr current_order_data = (order_ptr)current_order->data;
+            printf("%d %s %d\n", current_order_data->time, current_order_data->recipe->name, current_order_data->quantity);
+            current_order = current_order->next;
+        }
+    }
+    if(truck_orders->length<=  0){
+        printf("camincino vuoto\n");
+    }
+    linked_list_destroy(truck_orders, free_order);   
+
+    print_order_list(ready_orders, "ready");
+    print_order_list(pending_orders, "pending");
+}
+
 
 int main()
 {
@@ -680,7 +735,7 @@ int main()
             panic("Invalid command");
             break;
         }
-        // %s done @ time: %d\n", raw_command, current_time);
+        
         ++current_time;
         if (should_load_truck(current_time, truck_loading_interval))
         {
