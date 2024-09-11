@@ -108,6 +108,10 @@ int linked_list_remove_by_name(linked_list_ptr list, int (*predicate)(void *, ch
     {
         current->previous->next = current->next;
     }
+    
+    if(current->next == NULL){
+        list->tail = current->previous;
+    }
     list->length--;
     free_data(current->data);
     free(current);

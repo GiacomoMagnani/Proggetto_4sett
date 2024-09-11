@@ -354,6 +354,7 @@ recipe_ptr create_new_recipe(char *name, int weight, linked_list_ptr ingredients
     new_recipe->weight = weight;
     new_recipe->number_pending_orders = 0;
     new_recipe->ingredients = ingredients;
+    new_recipe->last_expired_ingredient_check = 0;
     return new_recipe;
 }
 
@@ -470,7 +471,7 @@ void delete_all_expired_batches(warehouse_item_ptr item)
     DEBUG(printf("[debug] Deleting expired batches for ingredient %s\n", item->name));
     linked_list_ptr batch_list = item->batches;
 
-    while (last_refill_time && batch_list->head != NULL)
+    while (batch_list->head != NULL)
     {
         item_batch_ptr current_batch_data = (item_batch_ptr)batch_list->head->data;
         if (current_batch_data->expiration_date <= current_time)
