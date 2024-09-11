@@ -85,6 +85,7 @@ typedef struct recipe_t
     char *name;
     int weight;
     int number_pending_orders;
+    int last_expired_ingredient_check;
     linked_list_ptr ingredients;
 } recipe;
 
@@ -107,7 +108,6 @@ typedef struct warehouse_ingredient
 {
     char *name;
     int quantity_total_in_stock;
-    int time_last_expiration_check;
     batches_list batches;
 } warehouse_item;
 typedef warehouse_item *warehouse_item_ptr;
@@ -126,6 +126,7 @@ typedef struct order
     int quantity;
     int time;
     int total_weight;
+    ingredient_ptr last_missing_ingredient;
 } order;
 typedef order *order_ptr;
 
@@ -234,14 +235,12 @@ void print_recipes(hashtable_ricette_t hashtable_ricette)
     }
 }
 
-
-
 hashtable create_hashtable()
 {
     hashtable ht = (hashtable)calloc(HASHTABLE_SIZE, sizeof(linked_list_ptr));
     for (int i = 0; i < HASHTABLE_SIZE; ++i)
     {
-        //ht[i] = linked_list_initialize();
+        // ht[i] = linked_list_initialize();
         ht[i] = NULL;
     }
     return ht;
@@ -300,7 +299,6 @@ warehouse_item_ptr find_or_add_default_warehouse_item(hashtable_warehouse_t hash
         found_item->name = strdup(warehouse_item_name);
         found_item->quantity_total_in_stock = 0;
         found_item->batches = linked_list_initialize();
-        found_item->time_last_expiration_check = 0;
         size_t hash_indice = hash_string(warehouse_item_name);
         if (!hashtable_warehouse[hash_indice])
         {
@@ -363,7 +361,8 @@ void add_new_recipe(hashtable_ricette_t hashtable_ricette, char *recipe_name, li
 {
     size_t hash_indice = hash_string(recipe_name);
     linked_list_ptr current_list = hashtable_ricette[hash_indice];
-    if(!current_list){
+    if (!current_list)
+    {
         current_list = linked_list_initialize();
         hashtable_ricette[hash_indice] = current_list;
     }
@@ -462,6 +461,7 @@ order_ptr create_new_order(recipe_ptr recipe, int quantity)
     new_order->quantity = quantity;
     new_order->time = current_time;
     new_order->total_weight = quantity * recipe->weight;
+    new_order->last_missing_ingredient = recipe->ingredients->head->data;
     return new_order;
 }
 
@@ -469,9 +469,7 @@ void delete_all_expired_batches(warehouse_item_ptr item)
 {
     DEBUG(printf("[debug] Deleting expired batches for ingredient %s\n", item->name));
     linked_list_ptr batch_list = item->batches;
-    if(item->time_last_expiration_check >= last_refill_time){
-        return;
-    }
+
     while (last_refill_time && batch_list->head != NULL)
     {
         item_batch_ptr current_batch_data = (item_batch_ptr)batch_list->head->data;
@@ -485,11 +483,11 @@ void delete_all_expired_batches(warehouse_item_ptr item)
             break;
         }
     }
-    item->time_last_expiration_check = current_time;
 }
 
 int is_order_processable_now(order_ptr order)
 {
+    if (order->recipe->last_expired_ingredient_check < last_refill_time)
     {
         linked_list_node_ptr current_ingredient = order->recipe->ingredients->head;
         while (current_ingredient != NULL)
@@ -498,6 +496,7 @@ int is_order_processable_now(order_ptr order)
             delete_all_expired_batches(current_ingredient_data->warehouse_item_info);
             current_ingredient = current_ingredient->next;
         }
+        order->recipe->last_expired_ingredient_check = current_time;
     }
 
     linked_list_node_ptr current_ingredient = order->recipe->ingredients->head;
