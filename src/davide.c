@@ -3,6 +3,12 @@
 #include <string.h>
 #include "linked_list.h"
 
+#define DEBUG_ENABLED 0
+#define DEBUG(command)      \
+    if (DEBUG_ENABLED) \
+    command
+
+
 #define MAXIMUM_COMMAND_LENGHT 100
 #define MAXIMUM_IDENTIFIER_LENGHT 256
 #define HASHTABLE_SIZE 10000
@@ -128,6 +134,8 @@ typedef order *order_ptr;
 // DEBUG FUNCTIONS
 void print_order_list(linked_list_ptr list, char *list_name)
 {
+    if(!DEBUG_ENABLED)
+        return;
     printf("Orders %s: ", list_name);
     linked_list_node_ptr current_node = list->head;
     while (current_node != NULL)
@@ -143,6 +151,9 @@ void print_order_list(linked_list_ptr list, char *list_name)
 
 void print_warehouse_item(warehouse_item_ptr item)
 {
+        if(!DEBUG_ENABLED)
+        return;
+
     printf("Item: %s, quantity:%d \n", item->name, item->quantity_total_in_stock);
     printf("Batches:");
     linked_list_node_ptr current_batch = item->batches->head;
@@ -160,6 +171,8 @@ void print_warehouse_item(warehouse_item_ptr item)
 
 void print_entire_warehouse(hashtable_warehouse_t hashtable_warehouse)
 {
+        if(!DEBUG_ENABLED)
+        return;
     printf("------WAREHOUSE------\n");
     for (int i = 0; i < HASHTABLE_SIZE; ++i)
     {
@@ -181,6 +194,7 @@ void print_entire_warehouse(hashtable_warehouse_t hashtable_warehouse)
 
 void print_recipe_ingredients(linked_list_ptr ingredients)
 {
+
     linked_list_node_ptr current_ingredient = ingredients->head;
     while (current_ingredient != NULL)
     {
@@ -197,6 +211,8 @@ void print_recipe_ingredients(linked_list_ptr ingredients)
 
 void print_recipes(hashtable_ricette_t hashtable_ricette)
 {
+        if(!DEBUG_ENABLED)
+        return;
     printf("------RECIPES------\n");
     for (int i = 0; i < HASHTABLE_SIZE; i++)
     {
@@ -442,7 +458,7 @@ order_ptr create_new_order(recipe_ptr recipe, int quantity)
 
 void delete_all_expired_batches(warehouse_item_ptr item)
 {
-    printf("[debug] Deleting expired batches for ingredient %s\n", item->name);
+    DEBUG(printf("[debug] Deleting expired batches for ingredient %s\n", item->name));
     linked_list_ptr batch_list = item->batches;
     while (batch_list->head != NULL)
     {
@@ -512,10 +528,30 @@ void update_warehouse_on_order_processed(order_ptr order)
     {
         const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->quantity;
         const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
+        DEBUG(printf("[debug] to prepare order %s @ time %d I am using ingredient %s for total quantity %d \n", 
+        order->recipe->name, order->time, ((ingredient_ptr)current_ingredient->data)->name,order_ingredient_required_quantity ));
         use_ingredient(current_ingredient->data,order_ingredient_required_quantity);
         current_ingredient = current_ingredient->next;
     }
 
+}
+
+void add_to_ready_orders(linked_list_ptr ready_orders, order_ptr order)
+{
+
+    int insert_position = 0;
+    linked_list_node_ptr current_order = ready_orders->head;
+    while (current_order != NULL)
+    {
+        order_ptr current_order_data = (order_ptr)current_order->data;
+        if (current_order_data->time > order->time)
+        {
+            break;
+        }
+        insert_position++;
+        current_order = current_order->next;
+    }
+    linked_list_push_at_position(ready_orders, order, insert_position);
 }
 
 void handle_add_order_command()
@@ -538,12 +574,15 @@ void handle_add_order_command()
     print_entire_warehouse(hashtable_warehouse);
     if (is_order_processable_now(new_order))
     {
+        
         update_warehouse_on_order_processed(new_order);
-        linked_list_push_back(ready_orders, new_order);
+        
+        add_to_ready_orders(ready_orders, new_order);
         
         print_entire_warehouse(hashtable_warehouse);
         print_order_list(ready_orders, "ready");
-        printf("[debug] Order is processable %s quantity %d\n", new_order->recipe->name, new_order->quantity);
+        print_entire_warehouse(hashtable_warehouse);
+        DEBUG(printf("[debug] Order is processable %s quantity %d\n", new_order->recipe->name, new_order->quantity));
     }
     else
     {
@@ -602,12 +641,17 @@ void process_pending_orders(){
         order_ptr current_order_data = (order_ptr)current_order->data;
         if (is_order_processable_now(current_order_data))
         {
+             DEBUG(printf("\n\nNew processable order\n\n"));
             update_warehouse_on_order_processed(current_order_data);
-            linked_list_push_back(ready_orders, current_order_data);
+            add_to_ready_orders(ready_orders, current_order_data);
+            print_entire_warehouse(hashtable_warehouse);
+             DEBUG(printf("[debug] Order is processable %s @ time %d, quantity %d\n", current_order_data->recipe->name, current_order_data->time, current_order_data->quantity));
+            
             linked_list_node_ptr next_order = current_order->next;
             linked_list_remove_node(pending_orders, current_order, do_not_free);
             current_order = next_order;
             some_order_processed = 1;
+            DEBUG(printf("\n\nDONE\n\n"));
         }
         else
         {
@@ -657,6 +701,8 @@ void add_new_order_to_truck_orders(linked_list_ptr truck_orders, order_ptr order
     linked_list_push_at_position(truck_orders, order, insert_position);
 }
 
+
+
 void load_truck()
 {
     linked_list_ptr truck_orders = linked_list_initialize();
@@ -668,11 +714,9 @@ void load_truck()
             break;
         }
         loaded_weight += current_order->total_weight;
-        printf("[debug] Loaded order: %s %d for total weight of %d\n", current_order->recipe->name, current_order->quantity, current_order->total_weight);
         
         linked_list_pop_front(ready_orders, do_not_free);
 
-        printf("[debug] Loaded order: %s %d\n", current_order->recipe->name, current_order->quantity);
         add_new_order_to_truck_orders(truck_orders, current_order);
         current_order->recipe->number_pending_orders--;
     }
@@ -716,7 +760,7 @@ int main()
 
     while (scanf("%s", raw_command) == 1)
     {
-        // printf("[debug] Command: %s\n", raw_command);
+         DEBUG(printf("[debug] Command: %s @ time %d\n", raw_command, current_time));
         switch (get_command(raw_command))
         {
         case ADD_RECIPE:
