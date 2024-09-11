@@ -4,14 +4,13 @@
 #include "linked_list.h"
 
 #define DEBUG_ENABLED 0
-#define DEBUG(command)      \
+#define DEBUG(command) \
     if (DEBUG_ENABLED) \
     command
 
-
 #define MAXIMUM_COMMAND_LENGHT 100
 #define MAXIMUM_IDENTIFIER_LENGHT 256
-#define HASHTABLE_SIZE 10000
+#define HASHTABLE_SIZE 1000
 
 int is_new_line(int c)
 {
@@ -70,8 +69,6 @@ COMMAND get_command(const char *command)
     return -1;
 }
 
-
-
 int should_load_truck(int current_time, int truck_loading_interval)
 {
     return current_time % truck_loading_interval == 0;
@@ -110,6 +107,7 @@ typedef struct warehouse_ingredient
 {
     char *name;
     int quantity_total_in_stock;
+    int time_last_expiration_check;
     batches_list batches;
 } warehouse_item;
 typedef warehouse_item *warehouse_item_ptr;
@@ -134,7 +132,7 @@ typedef order *order_ptr;
 // DEBUG FUNCTIONS
 void print_order_list(linked_list_ptr list, char *list_name)
 {
-    if(!DEBUG_ENABLED)
+    if (!DEBUG_ENABLED)
         return;
     printf("Orders %s: ", list_name);
     linked_list_node_ptr current_node = list->head;
@@ -151,7 +149,7 @@ void print_order_list(linked_list_ptr list, char *list_name)
 
 void print_warehouse_item(warehouse_item_ptr item)
 {
-        if(!DEBUG_ENABLED)
+    if (!DEBUG_ENABLED)
         return;
 
     printf("Item: %s, quantity:%d \n", item->name, item->quantity_total_in_stock);
@@ -161,9 +159,9 @@ void print_warehouse_item(warehouse_item_ptr item)
     {
         item_batch_ptr current_item_batch = (item_batch_ptr)current_batch->data;
         printf("(qnt: %d, exp_date: %d)", current_item_batch->quantity, current_item_batch->expiration_date);
-        
+
         current_batch = current_batch->next;
-        if(current_batch)
+        if (current_batch)
             printf(", ");
     }
     printf("\n");
@@ -171,13 +169,13 @@ void print_warehouse_item(warehouse_item_ptr item)
 
 void print_entire_warehouse(hashtable_warehouse_t hashtable_warehouse)
 {
-        if(!DEBUG_ENABLED)
+    if (!DEBUG_ENABLED)
         return;
     printf("------WAREHOUSE------\n");
     for (int i = 0; i < HASHTABLE_SIZE; ++i)
     {
         linked_list_ptr current_list = hashtable_warehouse[i];
-        if (current_list->length <= 0)
+        if (!current_list || current_list->length <= 0)
         {
             continue;
         }
@@ -211,7 +209,7 @@ void print_recipe_ingredients(linked_list_ptr ingredients)
 
 void print_recipes(hashtable_ricette_t hashtable_ricette)
 {
-        if(!DEBUG_ENABLED)
+    if (!DEBUG_ENABLED)
         return;
     printf("------RECIPES------\n");
     for (int i = 0; i < HASHTABLE_SIZE; i++)
@@ -236,14 +234,15 @@ void print_recipes(hashtable_ricette_t hashtable_ricette)
     }
 }
 
-hashtable_warehouse_t hashtable_warehouse;
+
 
 hashtable create_hashtable()
 {
     hashtable ht = (hashtable)calloc(HASHTABLE_SIZE, sizeof(linked_list_ptr));
     for (int i = 0; i < HASHTABLE_SIZE; ++i)
     {
-        ht[i] = linked_list_initialize();
+        //ht[i] = linked_list_initialize();
+        ht[i] = NULL;
     }
     return ht;
 }
@@ -301,7 +300,12 @@ warehouse_item_ptr find_or_add_default_warehouse_item(hashtable_warehouse_t hash
         found_item->name = strdup(warehouse_item_name);
         found_item->quantity_total_in_stock = 0;
         found_item->batches = linked_list_initialize();
+        found_item->time_last_expiration_check = 0;
         size_t hash_indice = hash_string(warehouse_item_name);
+        if (!hashtable_warehouse[hash_indice])
+        {
+            hashtable_warehouse[hash_indice] = linked_list_initialize();
+        }
         linked_list_push_back(hashtable_warehouse[hash_indice], found_item);
     }
     return found_item;
@@ -314,6 +318,7 @@ int current_time = 0;
 int truck_capacity = 0;
 linked_list_ptr ready_orders;
 linked_list_ptr pending_orders;
+int last_refill_time = 0;
 
 void consume_input()
 {
@@ -358,6 +363,10 @@ void add_new_recipe(hashtable_ricette_t hashtable_ricette, char *recipe_name, li
 {
     size_t hash_indice = hash_string(recipe_name);
     linked_list_ptr current_list = hashtable_ricette[hash_indice];
+    if(!current_list){
+        current_list = linked_list_initialize();
+        hashtable_ricette[hash_indice] = current_list;
+    }
     recipe_ptr new_recipe = create_new_recipe(recipe_name, total_recipe_quantity, ingredients);
     linked_list_push_back(current_list, new_recipe);
 }
@@ -460,17 +469,23 @@ void delete_all_expired_batches(warehouse_item_ptr item)
 {
     DEBUG(printf("[debug] Deleting expired batches for ingredient %s\n", item->name));
     linked_list_ptr batch_list = item->batches;
-    while (batch_list->head != NULL)
+    if(item->time_last_expiration_check >= last_refill_time){
+        return;
+    }
+    while (last_refill_time && batch_list->head != NULL)
     {
         item_batch_ptr current_batch_data = (item_batch_ptr)batch_list->head->data;
         if (current_batch_data->expiration_date <= current_time)
         {
             item->quantity_total_in_stock -= current_batch_data->quantity;
             linked_list_pop_front(batch_list, free_batch);
-        }else{
+        }
+        else
+        {
             break;
         }
     }
+    item->time_last_expiration_check = current_time;
 }
 
 int is_order_processable_now(order_ptr order)
@@ -500,7 +515,8 @@ int is_order_processable_now(order_ptr order)
     return 1;
 }
 
-void use_ingredient(ingredient_ptr ingredient, int quantity){
+void use_ingredient(ingredient_ptr ingredient, int quantity)
+{
     linked_list_node_ptr current_batch = ingredient->warehouse_item_info->batches->head;
     while (current_batch != NULL && quantity > 0)
     {
@@ -522,18 +538,17 @@ void use_ingredient(ingredient_ptr ingredient, int quantity){
 }
 
 void update_warehouse_on_order_processed(order_ptr order)
-{ 
+{
     linked_list_node_ptr current_ingredient = order->recipe->ingredients->head;
     while (current_ingredient != NULL)
     {
         const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->quantity;
         const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
-        DEBUG(printf("[debug] to prepare order %s @ time %d I am using ingredient %s for total quantity %d \n", 
-        order->recipe->name, order->time, ((ingredient_ptr)current_ingredient->data)->name,order_ingredient_required_quantity ));
-        use_ingredient(current_ingredient->data,order_ingredient_required_quantity);
+        DEBUG(printf("[debug] to prepare order %s @ time %d I am using ingredient %s for total quantity %d \n",
+                     order->recipe->name, order->time, ((ingredient_ptr)current_ingredient->data)->name, order_ingredient_required_quantity));
+        use_ingredient(current_ingredient->data, order_ingredient_required_quantity);
         current_ingredient = current_ingredient->next;
     }
-
 }
 
 void add_to_ready_orders(linked_list_ptr ready_orders, order_ptr order)
@@ -574,11 +589,11 @@ void handle_add_order_command()
     print_entire_warehouse(hashtable_warehouse);
     if (is_order_processable_now(new_order))
     {
-        
+
         update_warehouse_on_order_processed(new_order);
-        
+
         add_to_ready_orders(ready_orders, new_order);
-        
+
         print_entire_warehouse(hashtable_warehouse);
         print_order_list(ready_orders, "ready");
         print_entire_warehouse(hashtable_warehouse);
@@ -604,7 +619,7 @@ item_batch_ptr create_new_batch(int quantity, int expiration_date)
 void add_new_batch_to_warehouse_item(warehouse_item_ptr item, item_batch_ptr new_batch)
 {
     item->quantity_total_in_stock += new_batch->quantity;
-    //1 find the right position to insert so that batches are sorted by expiration date in ascending order
+    // 1 find the right position to insert so that batches are sorted by expiration date in ascending order
     int insert_position = 0;
     linked_list_node_ptr current_batch = item->batches->head;
     while (current_batch != NULL)
@@ -620,20 +635,19 @@ void add_new_batch_to_warehouse_item(warehouse_item_ptr item, item_batch_ptr new
     linked_list_push_at_position(item->batches, new_batch, insert_position);
 }
 
-
 void free_order(void *raw_order)
 {
     order_ptr order = (order_ptr)raw_order;
     free(order);
 }
 
-
 void do_not_free(void *data)
 {
     return;
 }
 
-void process_pending_orders(){
+void process_pending_orders()
+{
     int some_order_processed = 0;
     linked_list_node_ptr current_order = pending_orders->head;
     while (current_order != NULL)
@@ -641,12 +655,12 @@ void process_pending_orders(){
         order_ptr current_order_data = (order_ptr)current_order->data;
         if (is_order_processable_now(current_order_data))
         {
-             DEBUG(printf("\n\nNew processable order\n\n"));
+            DEBUG(printf("\n\nNew processable order\n\n"));
             update_warehouse_on_order_processed(current_order_data);
             add_to_ready_orders(ready_orders, current_order_data);
             print_entire_warehouse(hashtable_warehouse);
-             DEBUG(printf("[debug] Order is processable %s @ time %d, quantity %d\n", current_order_data->recipe->name, current_order_data->time, current_order_data->quantity));
-            
+            DEBUG(printf("[debug] Order is processable %s @ time %d, quantity %d\n", current_order_data->recipe->name, current_order_data->time, current_order_data->quantity));
+
             linked_list_node_ptr next_order = current_order->next;
             linked_list_remove_node(pending_orders, current_order, do_not_free);
             current_order = next_order;
@@ -658,21 +672,24 @@ void process_pending_orders(){
             current_order = current_order->next;
         }
     }
-    if(some_order_processed){
+    if (some_order_processed)
+    {
         print_order_list(ready_orders, "ready");
         print_order_list(pending_orders, "pending");
     }
 }
 
-void handle_warehouse_refill(){
-   
-    while(!is_new_line(getchar())){
+void handle_warehouse_refill()
+{
+
+    while (!is_new_line(getchar()))
+    {
         char ingredient_name[MAXIMUM_IDENTIFIER_LENGHT];
         int quantity;
         int expiration_date;
         if (scanf("%s %d %d", ingredient_name, &quantity, &expiration_date) != 3)
         {
-           panic("Invalid input");
+            panic("Invalid input");
         }
         warehouse_item_ptr found_item = find_or_add_default_warehouse_item(hashtable_warehouse, ingredient_name);
         item_batch_ptr new_batch = create_new_batch(quantity, expiration_date);
@@ -682,6 +699,7 @@ void handle_warehouse_refill(){
     print_entire_warehouse(hashtable_warehouse);
 
     process_pending_orders();
+    last_refill_time = current_time;
 }
 
 void add_new_order_to_truck_orders(linked_list_ptr truck_orders, order_ptr order)
@@ -701,26 +719,26 @@ void add_new_order_to_truck_orders(linked_list_ptr truck_orders, order_ptr order
     linked_list_push_at_position(truck_orders, order, insert_position);
 }
 
-
-
 void load_truck()
 {
     linked_list_ptr truck_orders = linked_list_initialize();
 
     int loaded_weight = 0;
-    while(loaded_weight < truck_capacity && ready_orders->head != NULL){
+    while (loaded_weight < truck_capacity && ready_orders->head != NULL)
+    {
         order_ptr current_order = (order_ptr)ready_orders->head->data;
-        if(loaded_weight + current_order->total_weight > truck_capacity){
+        if (loaded_weight + current_order->total_weight > truck_capacity)
+        {
             break;
         }
         loaded_weight += current_order->total_weight;
-        
+
         linked_list_pop_front(ready_orders, do_not_free);
 
         add_new_order_to_truck_orders(truck_orders, current_order);
         current_order->recipe->number_pending_orders--;
     }
-    
+
     {
         linked_list_node_ptr current_order = truck_orders->head;
         while (current_order != NULL)
@@ -730,15 +748,15 @@ void load_truck()
             current_order = current_order->next;
         }
     }
-    if(truck_orders->length<=  0){
+    if (truck_orders->length <= 0)
+    {
         printf("camincino vuoto\n");
     }
-    linked_list_destroy(truck_orders, free_order);   
+    linked_list_destroy(truck_orders, free_order);
 
     print_order_list(ready_orders, "ready");
     print_order_list(pending_orders, "pending");
 }
-
 
 int main()
 {
@@ -755,12 +773,12 @@ int main()
     }
     // consume_input();
 
-    printf("[debug] Truck loading interval: %d\n", truck_loading_interval);
-    printf("[debug] Truck capacity: %d\n", truck_capacity);
+    DEBUG(printf("[debug] Truck loading interval: %d\n", truck_loading_interval));
+    DEBUG(printf("[debug] Truck capacity: %d\n", truck_capacity));
 
     while (scanf("%s", raw_command) == 1)
     {
-         DEBUG(printf("[debug] Command: %s @ time %d\n", raw_command, current_time));
+        DEBUG(printf("[debug] Command: %s @ time %d\n", raw_command, current_time));
         switch (get_command(raw_command))
         {
         case ADD_RECIPE:
@@ -779,7 +797,7 @@ int main()
             panic("Invalid command");
             break;
         }
-        
+
         ++current_time;
         if (should_load_truck(current_time, truck_loading_interval))
         {
