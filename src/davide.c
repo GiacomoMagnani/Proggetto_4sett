@@ -4,8 +4,6 @@
 
 //LIST
 
-#include <stdlib.h>
-
 #define OK 1
 #define NOK 0
 
@@ -995,7 +993,7 @@ void load_truck()
     }
     if (truck_orders->length <= 0)
     {
-        printf("camincino vuoto\n");
+        printf("camioncino vuoto\n");
     }
     linked_list_destroy(truck_orders, free_order);
 
