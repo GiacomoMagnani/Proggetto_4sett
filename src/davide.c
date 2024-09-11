@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-//LIST
+// LIST
 
 #define OK 1
 #define NOK 0
@@ -109,8 +109,9 @@ int linked_list_remove_by_name(linked_list_ptr list, int (*predicate)(void *, ch
     {
         current->previous->next = current->next;
     }
-    
-    if(current->next == NULL){
+
+    if (current->next == NULL)
+    {
         list->tail = current->previous;
     }
     list->length--;
@@ -135,21 +136,25 @@ linked_list_node_ptr find_at_position(linked_list_ptr list, int position)
 
 int linked_list_push_at_position(linked_list_ptr list, void *data, int position)
 {
-   if(position < 0 || position > list->length){
+    if (position < 0 || position > list->length)
+    {
         return NOK;
     }
 
     linked_list_node_ptr newNode = linked_list_node_create(data);
-    if(position == 0){
+    if (position == 0)
+    {
         linked_list_push_front(list, data);
         return OK;
     }
-    if(position == list->length){
+    if (position == list->length)
+    {
         linked_list_push_back(list, data);
         return OK;
     }
     linked_list_node_ptr current = find_at_position(list, position);
-    if(current == NULL){
+    if (current == NULL)
+    {
         return NOK;
     }
 
@@ -159,7 +164,6 @@ int linked_list_push_at_position(linked_list_ptr list, void *data, int position)
     current->previous = newNode;
     list->length++;
     return OK;
-
 }
 
 int linked_list_remove_at_position(linked_list_ptr list, int position, void (*free_data)(void *))
@@ -199,24 +203,30 @@ int linked_list_remove_at_position(linked_list_ptr list, int position, void (*fr
 
 int linked_list_pop_front(linked_list_ptr list, void (*free_data)(void *))
 {
-  return linked_list_remove_at_position(list, 0, free_data);
+    return linked_list_remove_at_position(list, 0, free_data);
 }
 
-int linked_list_remove_node(linked_list_ptr list,linked_list_node_ptr node_to_delete, void (*free_data)(void *)){
-    if(node_to_delete == NULL){
+int linked_list_remove_node(linked_list_ptr list, linked_list_node_ptr node_to_delete, void (*free_data)(void *))
+{
+    if (node_to_delete == NULL)
+    {
         return NOK;
     }
-    if(node_to_delete->previous == NULL){
+    if (node_to_delete->previous == NULL)
+    {
         list->head = node_to_delete->next;
     }
-    else{
+    else
+    {
         node_to_delete->previous->next = node_to_delete->next;
     }
 
-    if(node_to_delete->next == NULL){
+    if (node_to_delete->next == NULL)
+    {
         list->tail = node_to_delete->previous;
     }
-    else{
+    else
+    {
         node_to_delete->next->previous = node_to_delete->previous;
     }
     list->length--;
@@ -243,13 +253,14 @@ int linked_list_destroy(linked_list_ptr list, void (*free_data)(void *))
     return destroyed_nodes;
 }
 
-//END OF LIST
+// END OF LIST
 
+int current_time = 0;
 
 #define DEBUG_ENABLED 0
 #define DEBUG(command) \
     if (DEBUG_ENABLED) \
-    command
+    printf("CURR_TIME : %d -- ", current_time), command
 
 #define MAXIMUM_COMMAND_LENGHT 100
 #define MAXIMUM_IDENTIFIER_LENGHT 256
@@ -369,7 +380,7 @@ typedef struct order
     int quantity;
     int time;
     int total_weight;
-    ingredient_ptr last_missing_ingredient;
+    linked_list_node_ptr last_missing_ingredient_node;
 } order;
 typedef order *order_ptr;
 
@@ -459,7 +470,7 @@ void print_recipes(hashtable_ricette_t hashtable_ricette)
     for (int i = 0; i < HASHTABLE_SIZE; i++)
     {
         linked_list_ptr current_list = hashtable_ricette[i];
-        if (current_list->length <= 0)
+        if (!current_list || current_list->length <= 0)
         {
             continue;
         }
@@ -555,7 +566,7 @@ warehouse_item_ptr find_or_add_default_warehouse_item(hashtable_warehouse_t hash
 // GLOBALS
 hashtable_ricette_t hashtable_ricette;
 hashtable_warehouse_t hashtable_warehouse;
-int current_time = 0;
+
 int truck_capacity = 0;
 linked_list_ptr ready_orders;
 linked_list_ptr pending_orders;
@@ -705,7 +716,7 @@ order_ptr create_new_order(recipe_ptr recipe, int quantity)
     new_order->quantity = quantity;
     new_order->time = current_time;
     new_order->total_weight = quantity * recipe->weight;
-    new_order->last_missing_ingredient = recipe->ingredients->head->data;
+    new_order->last_missing_ingredient_node = recipe->ingredients->head;
     return new_order;
 }
 
@@ -731,7 +742,7 @@ void delete_all_expired_batches(warehouse_item_ptr item)
 
 int is_order_processable_now(order_ptr order)
 {
-    if (order->recipe->last_expired_ingredient_check < last_refill_time)
+    if (order->recipe->last_expired_ingredient_check < current_time)
     {
         linked_list_node_ptr current_ingredient = order->recipe->ingredients->head;
         while (current_ingredient != NULL)
@@ -743,18 +754,55 @@ int is_order_processable_now(order_ptr order)
         order->recipe->last_expired_ingredient_check = current_time;
     }
 
-    linked_list_node_ptr current_ingredient = order->recipe->ingredients->head;
-    while (current_ingredient != NULL)
     {
-        const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->quantity;
-        const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
-        const int warehouse_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->warehouse_item_info->quantity_total_in_stock;
-        if (order_ingredient_required_quantity > warehouse_ingredient_quantity)
+        // last_missing_ingredient_node to tail
+        linked_list_node_ptr current_ingredient = order->last_missing_ingredient_node;
+        while (current_ingredient != NULL)
         {
-            return 0;
+            const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->quantity;
+            const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
+            const int warehouse_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->warehouse_item_info->quantity_total_in_stock;
+            if (order_ingredient_required_quantity > warehouse_ingredient_quantity)
+            {
+                order->last_missing_ingredient_node = current_ingredient;
+                return 0;
+            }
+            current_ingredient = current_ingredient->next;
         }
-        current_ingredient = current_ingredient->next;
     }
+
+    {
+        // head to last_missing_ingredient_node
+        linked_list_node_ptr current_ingredient = order->recipe->ingredients->head;
+        while (current_ingredient != NULL && current_ingredient != order->last_missing_ingredient_node)
+        {
+            const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->quantity;
+            const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
+            const int warehouse_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->warehouse_item_info->quantity_total_in_stock;
+            if (order_ingredient_required_quantity > warehouse_ingredient_quantity)
+            {
+                order->last_missing_ingredient_node = current_ingredient;
+                return 0;
+            }
+            current_ingredient = current_ingredient->next;
+        }
+    }
+    // {
+    // head to tail
+    // linked_list_node_ptr current_ingredient = order->recipe->ingredients->head;
+    // while (current_ingredient != NULL)
+    // {
+    //     const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->quantity;
+    //     const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
+    //     const int warehouse_ingredient_quantity = ((ingredient_ptr)current_ingredient->data)->warehouse_item_info->quantity_total_in_stock;
+    //     if (order_ingredient_required_quantity > warehouse_ingredient_quantity)
+    //     {
+    //         order->last_missing_ingredient_node = (ingredient_ptr)current_ingredient;
+    //         return 0;
+    //     }
+    //     current_ingredient = current_ingredient->next;
+    // }
+    //}
     return 1;
 }
 
@@ -941,8 +989,8 @@ void handle_warehouse_refill()
     printf("rifornito\n");
     print_entire_warehouse(hashtable_warehouse);
 
-    process_pending_orders();
     last_refill_time = current_time;
+    process_pending_orders();
 }
 
 void add_new_order_to_truck_orders(linked_list_ptr truck_orders, order_ptr order)
