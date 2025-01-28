@@ -2,6 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+void do_not_free(void *const data)
+{
+    return;
+}
 
 #define NODE_STRUCT typedef struct ll_n { struct ll_n *p; struct ll_n *n; void *d; } ll_n_t;
 #define LIST_STRUCT typedef struct { int l; ll_n_t *h; ll_n_t *t; } ll_t;
@@ -18,7 +22,6 @@ typedef NODE_PTR linked_list_node_ptr;
 typedef int (*predicate_fn)(void *, char *);
 typedef void (*free_fn)(void *);
 typedef int list_position;
-
 
 #define LIST_INIT() ({ LIST_PTR ll = NEW_LIST(); ll->l = 0; ll->h = ll->t = NULL; ll; })
 #define CREATE_NODE(d) ({ NODE_PTR nn = (NODE_PTR)malloc(sizeof(ll_n_t)); nn->d = (d); nn->p = nn->n = NULL; nn; })
@@ -44,46 +47,67 @@ linked_list_node_ptr linked_list_node_create(void *d) { return CREATE_NODE(d); }
 list_position linked_list_push_front(linked_list_ptr l, void *d) { return LL_PUSH_FRONT(l, d); }
 list_position linked_list_push_back(linked_list_ptr l, void *d) { return LL_PUSH_BACK(l, d); }
 linked_list_node_ptr find_by_name(linked_list_ptr l, predicate_fn pred, char *name) { return LL_FIND(l, pred, name); }
-list_position linked_list_remove_by_name(linked_list_ptr l, predicate_fn pred, char *name, free_fn free_data) {
+list_position linked_list_remove_by_name(linked_list_ptr l, predicate_fn pred, char *name, free_fn free_data)
+{
     linked_list_node_ptr node = find_by_name(l, pred, name);
     return node ? LL_REMOVE_NODE(l, node, free_data) : 0;
 }
-linked_list_node_ptr find_at_position(linked_list_ptr l, list_position pos) {
-    if (LL_IS_POS_INVALID(l,pos)) return NULL; NODE_PTR cur = l->h; for (list_position i = 0; i < pos; i++) cur = cur->n; return cur;
+linked_list_node_ptr find_at_position(linked_list_ptr l, list_position pos)
+{
+    if (LL_IS_POS_INVALID(l, pos))
+        return NULL;
+    NODE_PTR cur = l->h;
+    for (list_position i = 0; i < pos; i++)
+        cur = cur->n;
+    return cur;
 }
-list_position linked_list_push_at_position(linked_list_ptr l, void *d, list_position pos) {
-    if (pos < 0 || pos > l->l) return 0;
-    if (pos == 0) return linked_list_push_front(l, d);
-    if (pos == l->l) return linked_list_push_back(l, d);
-    NODE_PTR cur = find_at_position(l, pos); NODE_PTR nn = CREATE_NODE(d);
-    nn->n = cur; nn->p = cur->p; cur->p->n = nn; cur->p = nn; l->l++; return 1;
+list_position linked_list_push_at_position(linked_list_ptr l, void *d, list_position pos)
+{
+    if (pos < 0 || pos > l->l)
+        return 0;
+    if (pos == 0)
+        return linked_list_push_front(l, d);
+    if (pos == l->l)
+        return linked_list_push_back(l, d);
+    NODE_PTR cur = find_at_position(l, pos);
+    NODE_PTR nn = CREATE_NODE(d);
+    nn->n = cur;
+    nn->p = cur->p;
+    cur->p->n = nn;
+    cur->p = nn;
+    l->l++;
+    return 1;
 }
-list_position linked_list_remove_at_position(linked_list_ptr l, list_position pos, free_fn free_data) {
-    if (pos < 0 || pos >= l->l) return 0; NODE_PTR cur = find_at_position(l, pos);
+list_position linked_list_remove_at_position(linked_list_ptr l, list_position pos, free_fn free_data)
+{
+    if (pos < 0 || pos >= l->l)
+        return 0;
+    NODE_PTR cur = find_at_position(l, pos);
     return cur ? LL_REMOVE_NODE(l, cur, free_data) : 0;
 }
 list_position linked_list_pop_front(linked_list_ptr l, free_fn free_data) { return LL_POP_FRONT(l, free_data); }
-list_position linked_list_remove_node(linked_list_ptr l, linked_list_node_ptr node, free_fn free_data) {
+list_position linked_list_remove_node(linked_list_ptr l, linked_list_node_ptr node, free_fn free_data)
+{
     return node ? LL_REMOVE_NODE(l, node, free_data) : 0;
 }
 void linked_list_destroy(linked_list_ptr l, free_fn free_data) { return LL_DESTROY(l, free_data); }
-
 
 int current_time = 0;
 
 #define MAXIMUM_COMMAND_LENGHT 100
 #define MAXIMUM_IDENTIFIER_LENGHT 256
 #define HASHTABLE_SIZE 1000
-#define ISNEWLINE(c) (!(c!= 10 && c!=13))
+#define ISNEWLINE(c) (!(c != 10 && c != 13))
 
-
-size_t h(const char*b,int c){
-    size_t d=5381,e;
-    for(;(e=*b++);d=(d<<5)+d-d*2*c+e);
-    return d%HASHTABLE_SIZE;
+size_t h(const char *b, int c)
+{
+    size_t d = 5381, e;
+    for (; (e = *b++); d = (d << 5) + d - d * 2 * c + e)
+        ;
+    return d % HASHTABLE_SIZE;
 }
-size_t hash_string(const char*b){ return h(b,1);}
-size_t dbj_alternative(const char*b){ return h(b,0);}
+size_t hash_string(const char *b) { return h(b, 1); }
+size_t dbj_alternative(const char *b) { return h(b, 0); }
 
 typedef enum
 {
@@ -93,35 +117,23 @@ typedef enum
     ORDER
 } COMMAND;
 
-int is_command(const char *prefix, const char *input_string)
+void panic(const char *const m)
 {
-    return strncmp(prefix, input_string, strlen(prefix)) == 0;
-}
-
-void panic(const char *message)
-{
-    fprintf(stderr, "PANIC: %s\n", message);
+    fprintf(stderr, "PANIC: %s\n", m);
     exit(-1);
 }
 
-COMMAND get_command(const char *command)
+COMMAND get_command(const char *const command)
 {
-    if (is_command("aggiungi_ricetta", command))
-    {
+#define IS_COMMAND(prefix, input_string) (strncmp(prefix, input_string, strlen(prefix)) == 0)
+    if (IS_COMMAND("aggiungi_ricetta", command))
         return ADD_RECIPE;
-    }
-    else if (is_command("rimuovi_ricetta", command))
-    {
+    if (IS_COMMAND("rimuovi_ricetta", command))
         return REMOVE_RECIPE;
-    }
-    else if (is_command("rifornimento", command))
-    {
+    if (IS_COMMAND("rifornimento", command))
         return REFILL;
-    }
-    else if (is_command("ordine", command))
-    {
+    if (IS_COMMAND("ordine", command))
         return ORDER;
-    }
     panic("Invalid command");
     return -1;
 }
@@ -136,7 +148,6 @@ typedef struct recipe_t
 } recipe;
 
 typedef recipe *recipe_ptr;
-
 typedef linked_list_ptr *hashtable;
 typedef hashtable hashtable_ricette_t;
 typedef hashtable hashtable_ordini_t;
@@ -176,28 +187,26 @@ typedef struct order
 } order;
 typedef order *order_ptr;
 
-void *find_in_hashtable(hashtable hashtable, int (*name_match)(void *, char *), char *name)
+void free_order(void *const raw_order)
 {
-    linked_list_ptr current_recipe = hashtable[hash_string(name)];
-    if (!current_recipe)
-        return NULL;
+    free((order_ptr)raw_order);
+}
 
-    linked_list_node_ptr current_node = current_recipe->h;
-    while (current_node != NULL)
+typedef int (*name_match_fn)(void *, char *);
+void *find_in_hashtable(hashtable hashtable, name_match_fn name_match, char *name)
+{
+    linked_list_ptr current_recipe_ptr = hashtable[hash_string(name)];
+    for (linked_list_node_ptr current_node = (current_recipe_ptr ? current_recipe_ptr->h : NULL); current_recipe_ptr && current_node; current_node = current_node->n)
     {
-        void *current_recipe = (recipe_ptr)current_node->d;
+        void *const current_recipe = current_node->d;
         if (name_match(current_recipe, name))
-        {
             return current_recipe;
-        }
-        current_node = current_node->n;
     }
     return NULL;
 }
 
 #define GENERIC_NAME_MATCH(fn_prefix, type) \
     int fn_prefix##_name_match(void *item_ptr, char *name_to_match) { return strcmp(((type)item_ptr)->name, name_to_match) == 0; }
-
 
 #define RECIPE_NAME_MATCH(item_ptr, name_to_match) \
     GENERIC_NAME_MATCH(recipe_ptr, warehouse_item_ptr)
@@ -215,13 +224,12 @@ recipe_ptr find_recipe(hashtable_ricette_t hashtable_ricette, char *recipe_name)
 
 GENERIC_NAME_MATCH(warehouse_item, warehouse_item_ptr)
 
-
 warehouse_item_ptr find_or_add_default_warehouse_item(hashtable_warehouse_t hashtable_warehouse, char *warehouse_item_name)
 {
     warehouse_item_ptr found_item = find_in_hashtable(hashtable_warehouse, warehouse_item_name_match, warehouse_item_name);
     if (!found_item)
     {
-        found_item = (warehouse_item_ptr)calloc(1,sizeof(warehouse_item));
+        found_item = (warehouse_item_ptr)calloc(1, sizeof(warehouse_item));
         found_item->name = strdup(warehouse_item_name);
         found_item->batches = linked_list_initialize();
         const size_t h = hash_string(warehouse_item_name);
@@ -249,7 +257,8 @@ void consume_input()
 ingredient_ptr create_new_ingredient(char *name, int quantity)
 {
     ingredient_ptr new_ingredient = (ingredient_ptr)malloc(sizeof(ingredient));
-    if (new_ingredient == NULL) {
+    if (new_ingredient == NULL)
+    {
         panic("Memory allocation failed");
     }
     new_ingredient->name = strdup(name);
@@ -260,7 +269,7 @@ ingredient_ptr create_new_ingredient(char *name, int quantity)
 
 recipe_ptr create_new_recipe(char *name, int weight, linked_list_ptr ingredients)
 {
-    recipe_ptr new_recipe = calloc(1,sizeof(recipe));
+    recipe_ptr new_recipe = calloc(1, sizeof(recipe));
     new_recipe->name = strdup(name);
     new_recipe->weight = weight;
     new_recipe->ingredients = ingredients;
@@ -305,30 +314,20 @@ void handle_add_recipe_command()
     add_new_recipe(hashtable_ricette, recipe_name, ingredients, total_recipe_quantity);
 }
 
-void free_ingredient(void *raw_ingredient)
+void free_ingredient(void *const ptr)
 {
-    ingredient_ptr ingredient = (ingredient_ptr)raw_ingredient;
-    free(ingredient->name);
-    free(ingredient);
+    free(((ingredient_ptr)ptr)->name);
+    free((ingredient_ptr)ptr);
 }
-void free_recipe(void *raw_recipe)
+void free_recipe(void *const ptr)
 {
-    recipe_ptr recipe = (recipe_ptr)raw_recipe;
-    free(recipe->name);
-    linked_list_destroy(recipe->ingredients, free_ingredient);
-    free(recipe);
+    free(((recipe_ptr)ptr)->name);
+    linked_list_destroy(((recipe_ptr)ptr)->ingredients, free_ingredient);
+    free(((recipe_ptr)ptr));
 }
-void free_batch(void *raw_batch)
+void free_batch(void *const ptr)
 {
-    item_batch_ptr batch = (item_batch_ptr)raw_batch;
-    free(batch);
-}
-
-void remove_recipe(hashtable_ricette_t hashtable_ricette, recipe_ptr recipe_to_remove)
-{
-    size_t h = hash_string(recipe_to_remove->name);
-    linked_list_ptr current_list = hashtable_ricette[h];
-    linked_list_remove_by_name(current_list, recipe_name_match, recipe_to_remove->name, free_recipe);
+    free((item_batch_ptr)ptr);
 }
 
 void handle_remove_recipe_command()
@@ -349,13 +348,13 @@ void handle_remove_recipe_command()
         printf("ordini in sospeso\n");
         return;
     }
-    remove_recipe(hashtable_ricette, found_recipe);
+    linked_list_remove_by_name(hashtable_ricette[hash_string(found_recipe->name)], recipe_name_match, found_recipe->name, free_recipe);
     printf("rimossa\n");
 }
 
 order_ptr create_new_order(recipe_ptr recipe, int quantity)
 {
-    order_ptr new_order = (order_ptr)calloc(1,sizeof(order));
+    order_ptr new_order = (order_ptr)calloc(1, sizeof(order));
     new_order->recipe = recipe;
     new_order->quantity = quantity;
     new_order->time = current_time;
@@ -382,8 +381,8 @@ void delete_all_expired_batches(warehouse_item_ptr item)
     }
 }
 
-
-
+#define NOT_PROCESSABLE 0
+#define PROCESSABLE 1
 int is_order_processable_now(order_ptr order)
 {
     if (order->recipe->last_expired_ingredient_check < current_time)
@@ -399,37 +398,22 @@ int is_order_processable_now(order_ptr order)
     }
 
     {
-        linked_list_node_ptr current_ingredient = order->last_missing_ingredient_node;
-        while (current_ingredient != NULL)
-        {
-            const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->d)->quantity;
-            const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
-            const int warehouse_ingredient_quantity = ((ingredient_ptr)current_ingredient->d)->warehouse_item_info->quantity_total_in_stock;
-            if (order_ingredient_required_quantity > warehouse_ingredient_quantity)
-            {
+        for(linked_list_node_ptr current_ingredient = order->last_missing_ingredient_node; current_ingredient; current_ingredient = current_ingredient->n)
+            if ((order->quantity * (((ingredient_ptr)current_ingredient->d)->quantity)) > (((ingredient_ptr)current_ingredient->d)->warehouse_item_info->quantity_total_in_stock)){
                 order->last_missing_ingredient_node = current_ingredient;
-                return 0;
+                return NOT_PROCESSABLE;
             }
-            current_ingredient = current_ingredient->n;
-        }
     }
 
     {
-        linked_list_node_ptr current_ingredient = order->recipe->ingredients->h;
-        while (current_ingredient != NULL && current_ingredient != order->last_missing_ingredient_node)
-        {
-            const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->d)->quantity;
-            const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
-            const int warehouse_ingredient_quantity = ((ingredient_ptr)current_ingredient->d)->warehouse_item_info->quantity_total_in_stock;
-            if (order_ingredient_required_quantity > warehouse_ingredient_quantity)
+        for(linked_list_node_ptr current_ingredient = order->recipe->ingredients->h;current_ingredient != NULL && current_ingredient != order->last_missing_ingredient_node;current_ingredient = current_ingredient->n) 
+            if ((order->quantity * (((ingredient_ptr)current_ingredient->d)->quantity)) > (((ingredient_ptr)current_ingredient->d)->warehouse_item_info->quantity_total_in_stock))
             {
                 order->last_missing_ingredient_node = current_ingredient;
-                return 0;
+                return NOT_PROCESSABLE;
             }
-            current_ingredient = current_ingredient->n;
-        }
     }
-    return 1;
+    return PROCESSABLE;
 }
 
 void use_ingredient(ingredient_ptr ingredient, int quantity)
@@ -456,31 +440,16 @@ void use_ingredient(ingredient_ptr ingredient, int quantity)
 
 void update_warehouse_on_order_processed(order_ptr order)
 {
-    linked_list_node_ptr current_ingredient = order->recipe->ingredients->h;
-    while (current_ingredient != NULL)
-    {
-        const int recipe_ingredient_quantity = ((ingredient_ptr)current_ingredient->d)->quantity;
-        const int order_ingredient_required_quantity = order->quantity * recipe_ingredient_quantity;
-        use_ingredient(current_ingredient->d, order_ingredient_required_quantity);
-        current_ingredient = current_ingredient->n;
-    }
+    for (linked_list_node_ptr current_ingredient = order->recipe->ingredients->h; current_ingredient; current_ingredient = current_ingredient->n)
+        use_ingredient(current_ingredient->d, (order->quantity * (((ingredient_ptr)current_ingredient->d)->quantity)));
 }
 
 void add_to_ready_orders(linked_list_ptr ready_orders, order_ptr order)
 {
-
-    int insert_position = 0;
-    linked_list_node_ptr current_order = ready_orders->h;
-    while (current_order != NULL)
-    {
-        order_ptr current_order_data = (order_ptr)current_order->d;
-        if (current_order_data->time > order->time)
-        {
+    unsigned insert_position = 0;
+    for (linked_list_node_ptr current_order = ready_orders->h; current_order; current_order = current_order->n, insert_position++)
+        if (((order_ptr)current_order->d)->time > order->time)
             break;
-        }
-        insert_position++;
-        current_order = current_order->n;
-    }
     linked_list_push_at_position(ready_orders, order, insert_position);
 }
 
@@ -504,10 +473,7 @@ void handle_add_order_command()
     if (is_order_processable_now(new_order))
     {
         update_warehouse_on_order_processed(new_order);
-
         add_to_ready_orders(ready_orders, new_order);
-
-        
     }
     else
     {
@@ -542,16 +508,7 @@ void add_new_batch_to_warehouse_item(warehouse_item_ptr item, item_batch_ptr new
     linked_list_push_at_position(item->batches, new_batch, insert_position);
 }
 
-void free_order(void *raw_order)
-{
-    order_ptr order = (order_ptr)raw_order;
-    free(order);
-}
 
-void do_not_free(void *data)
-{
-    return;
-}
 
 void process_pending_orders()
 {
@@ -573,7 +530,6 @@ void process_pending_orders()
             current_order = current_order->n;
         }
     }
-   
 }
 
 void handle_warehouse_refill()
@@ -624,32 +580,22 @@ void load_truck()
     {
         order_ptr current_order = (order_ptr)ready_orders->h->d;
         if (loaded_weight + current_order->total_weight > truck_capacity)
-        {
             break;
-        }
+
         loaded_weight += current_order->total_weight;
 
         linked_list_pop_front(ready_orders, do_not_free);
-
         add_new_order_to_truck_orders(truck_orders, current_order);
         current_order->recipe->number_pending_orders--;
     }
 
-    {
-        linked_list_node_ptr current_order = truck_orders->h;
-        while (current_order != NULL)
-        {
-            order_ptr current_order_data = (order_ptr)current_order->d;
-            printf("%d %s %d\n", current_order_data->time, current_order_data->recipe->name, current_order_data->quantity);
-            current_order = current_order->n;
-        }
-    }
-    if (truck_orders->l <= 0)
-    {
-        printf("camioncino vuoto\n");
-    }
-    linked_list_destroy(truck_orders, free_order);
+    for (linked_list_node_ptr current_order = truck_orders->h; current_order; current_order = current_order->n)
+        printf("%d %s %d\n", ((order_ptr)current_order->d)->time, ((order_ptr)current_order->d)->recipe->name, ((order_ptr)current_order->d)->quantity);
 
+    if (truck_orders->l <= 0)
+        printf("camioncino vuoto\n");
+
+    linked_list_destroy(truck_orders, free_order);
 }
 
 int main()
@@ -665,7 +611,6 @@ int main()
     {
         panic("Invalid input");
     }
-
 
     while (scanf("%s", raw_command) == 1)
     {
@@ -687,12 +632,8 @@ int main()
             panic("Invalid command");
             break;
         }
-
-        ++current_time;
-        if ((current_time % truck_loading_interval)==0)
-        {
+        if (((++current_time) % truck_loading_interval) == 0)
             load_truck();
-        }
     }
     return 0;
 }
